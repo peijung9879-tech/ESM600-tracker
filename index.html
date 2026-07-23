@@ -320,6 +320,7 @@
 </head>
 <body>
 
+<div id="debugBanner" style="display:none; position:fixed; top:0; left:0; right:0; background:#c0433a; color:#fff; padding:10px 16px; z-index:9999; font-size:13px; font-family:sans-serif;"></div>
 <div class="loading-screen" id="loadingScreen">正在載入共用資料...</div>
 
 <div id="app">
@@ -396,7 +397,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxQGhb2nKMal8vj
 
 const storage = {
   async get(key){
-    const res = await fetch(`${APPS_SCRIPT_URL}?key=${encodeURIComponent(key)}`);
+    const res = await fetch(`${APPS_SCRIPT_URL}?key=${encodeURIComponent(key)}&_t=${Date.now()}`, { cache: 'no-store' });
     if(!res.ok) throw new Error('讀取失敗：' + res.status);
     const data = await res.json();
     if(data && data.value !== undefined && data.value !== null){
@@ -406,6 +407,7 @@ const storage = {
   },
   async set(key, value){
     const res = await fetch(APPS_SCRIPT_URL, {
+      cache: 'no-store',
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 用text/plain避免CORS預檢請求
       body: JSON.stringify({ key, value })
@@ -440,6 +442,13 @@ let HISTORY = [];
 const STORAGE_KEY = 'tracker-current-v7';
 const HISTORY_KEY = 'tracker-history-v7';
 
+function showDebugError(msg){
+  const el = document.getElementById('debugBanner');
+  if(!el) return;
+  el.textContent = '⚠️ ' + msg;
+  el.style.display = 'block';
+}
+
 async function initData(){
   const loadingEl = document.getElementById('loadingScreen');
   const seedData = buildInitialTasks();
@@ -451,6 +460,7 @@ async function initData(){
     }
   }catch(err){
     console.error('讀取共用資料失敗，改用預設資料', err);
+    showDebugError('讀取共用資料失敗（改用預設資料，不影響操作但不會存到雲端）：' + err.message);
     DATA = JSON.parse(JSON.stringify(seedData));
   }
   try{
@@ -473,6 +483,7 @@ async function persistData(){
     await storage.set(STORAGE_KEY, JSON.stringify(DATA));
   }catch(err){
     console.error('儲存資料失敗', err);
+    showDebugError('儲存到雲端失敗：' + err.message + '（這次修改不會被保留，重新整理後會消失）');
     showToast('⚠️ 儲存到雲端失敗，請檢查網路後再試一次');
   }
 }
