@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>整車 BOM — Owner 追蹤看板</title>
+<style>
+  :root{
+    --bg:#f5f4f1;
+    --panel:#ffffff;
+    --ink:#1c1b19;
+    --ink-soft:#6b675f;
+    --line:#e4e1da;
+    --teal:#1f7a70;
+    --teal-soft:#e5f2ef;
+    --amber:#d98a34;
+    --amber-soft:#fbeedd;
+    --red:#c0433a;
+    --red-soft:#fbe9e7;
+    --blue:#2f5fa8;
+    --blue-soft:#e8eef8;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --sans: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:var(--sans); background:var(--bg); color:var(--ink);
+    padding:28px; -webkit-font-smoothing:antialiased;
+  }
+  h1{
+    font-size:22px; font-weight:700; margin:0 0 4px 0; letter-spacing:-0.01em;
+  }
+  .subtitle{ color:var(--ink-soft); font-size:13px; margin:0 0 20px 0; }
+
+  /* --- workload bar (signature element) --- */
+  .load-panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:16px 18px; margin-bottom:22px;
+  }
+  .load-panel-title{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); margin-bottom:12px; font-weight:600;}
+  .load-row{ display:grid; grid-template-columns:110px 1fr 90px; align-items:center; gap:12px; margin-bottom:9px;}
+  .load-row:last-child{margin-bottom:0;}
+  .load-row-wrap{ margin-bottom:6px; }
+  .load-row-wrap:last-child .load-inprogress-note{ margin-bottom:0; }
+  .load-inprogress-note{
+    margin:4px 0 9px 122px; font-size:11.5px; color:var(--blue); font-weight:600;
+    background:var(--blue-soft); border-radius:6px; padding:4px 10px; display:inline-block;
+  }
+  .load-name{ font-size:13px; font-weight:600; cursor:pointer; }
+  .load-name.active{ color:var(--teal); }
+  .load-bar{ display:flex; height:16px; border-radius:4px; overflow:hidden; background:var(--line); }
+  .seg{ height:100%; }
+  .seg.ok{ background:var(--teal); }
+  .seg.pending{ background:var(--amber); }
+  .seg.urgent{ background:var(--red); }
+  .seg.inprogress{ background:var(--blue); }
+  .load-count{ font-family:var(--mono); font-size:12px; color:var(--ink-soft); text-align:right;}
+
+  .legend{ display:flex; gap:16px; margin-top:10px; font-size:11px; color:var(--ink-soft);}
+  .legend span{ display:inline-flex; align-items:center; gap:5px;}
+  .dot{ width:9px; height:9px; border-radius:2px; display:inline-block;}
+
+  /* --- controls --- */
+  .controls{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;}
+  .tabs{ display:flex; gap:6px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:3px;}
+  .tab{ padding:6px 14px; font-size:13px; border-radius:6px; cursor:pointer; color:var(--ink-soft); font-weight:600;}
+  .tab.active{ background:var(--ink); color:#fff; }
+  .filterbar{ font-size:12px; color:var(--ink-soft);}
+  .filterbar select{ font-family:var(--sans); border:1px solid var(--line); border-radius:6px; padding:5px 8px; margin-left:6px;}
+
+  /* --- owner view --- */
+  .owner-block{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    margin-bottom:16px; overflow:hidden;
+  }
+  .owner-head{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:12px 16px; background:var(--teal-soft); border-bottom:1px solid var(--line);
+  }
+  .owner-head .name{ font-size:15px; font-weight:700; color:var(--teal);}
+  .owner-head .meta{ font-size:12px; color:var(--ink-soft); font-family:var(--mono);}
+
+  table{ width:100%; border-collapse:collapse; }
+  th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--ink-soft); padding:8px 16px; border-bottom:1px solid var(--line); font-weight:600;
+  }
+  td{ padding:9px 16px; font-size:13px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tr:last-child td{ border-bottom:none;}
+  .id-cell{ font-family:var(--mono); color:var(--ink-soft); white-space:nowrap; }
+  .status-pill{
+    display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; white-space:nowrap;
+  }
+  .status-pill.pending{ background:var(--amber-soft); color:var(--amber); }
+  .status-pill.ok{ background:var(--teal-soft); color:var(--teal); }
+  .status-pill.urgent{ background:var(--red-soft); color:var(--red); }
+  .deadline{ font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
+  .followup{ font-size:12px; color:var(--ink-soft);}
+  .empty-note{ padding:20px 16px; color:var(--ink-soft); font-size:13px; font-style:italic;}
+
+  /* --- raw view --- */
+  .raw-table th, .raw-table td{ font-size:12.5px; }
+  .raw-table{ background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden;}
+
+  /* --- editable cells --- */
+  .editable{
+    border-bottom:1px dashed #c9c5bb; cursor:text; min-width:60px;
+    transition:background .15s;
+  }
+  .editable:hover{ background:var(--teal-soft); border-bottom-color:var(--teal); }
+  .editable:focus{ outline:2px solid var(--teal); outline-offset:2px; border-radius:3px; background:#fff; }
+  .edit-hint{ font-size:11px; color:var(--ink-soft); margin-left:8px; }
+  .toolbar-right{ display:flex; align-items:center; gap:10px; }
+  .save-btn{
+    font-family:var(--sans); font-size:12px; font-weight:600; color:var(--teal);
+    background:var(--teal-soft); border:1px solid var(--teal); border-radius:6px;
+    padding:6px 12px; cursor:pointer;
+  }
+  .save-btn:hover{ background:var(--teal); color:#fff; }
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; font-size:12.5px; padding:8px 16px; border-radius:8px;
+    opacity:0; transition:all .25s; pointer-events:none; z-index:99;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* --- shared badge --- */
+  .shared-badge{
+    display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--teal);
+    background:var(--teal-soft); border:1px solid var(--teal); border-radius:20px;
+    padding:3px 10px; font-weight:600; margin-left:8px;
+  }
+
+  /* --- history panel --- */
+  .history-btn{
+    font-family:var(--sans); font-size:12px; font-weight:600; color:var(--ink);
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:6px 12px; cursor:pointer;
+  }
+  .history-btn:hover{ border-color:var(--teal); color:var(--teal); }
+  .history-overlay{
+    position:fixed; inset:0; background:rgba(28,27,25,.45); display:none;
+    align-items:center; justify-content:center; z-index:200; padding:30px;
+  }
+  .history-overlay.show{ display:flex; }
+  .history-modal{
+    background:var(--panel); border-radius:12px; width:100%; max-width:640px;
+    max-height:80vh; display:flex; flex-direction:column; overflow:hidden;
+  }
+  .history-modal-head{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:16px 20px; border-bottom:1px solid var(--line);
+  }
+  .history-modal-head h2{ font-size:15px; margin:0; }
+  .history-close{ cursor:pointer; color:var(--ink-soft); font-size:20px; line-height:1; border:none; background:none; }
+  .history-list{ overflow-y:auto; padding:8px 20px; }
+  .history-item{ padding:12px 0; border-bottom:1px solid var(--line); font-size:12.5px; }
+  .history-item:last-child{ border-bottom:none; }
+  .history-item .h-top{ display:flex; justify-content:space-between; color:var(--ink-soft); font-family:var(--mono); font-size:11px; margin-bottom:4px;}
+  .history-item .h-change{ color:var(--ink); }
+  .history-item .h-old{ color:var(--red); text-decoration:line-through; opacity:.7; }
+  .history-item .h-new{ color:var(--teal); font-weight:600; }
+  .history-empty{ padding:30px 0; text-align:center; color:var(--ink-soft); font-size:13px; }
+
+  .loading-screen{
+    position:fixed; inset:0; background:var(--bg); display:flex; align-items:center;
+    justify-content:center; flex-direction:column; gap:10px; z-index:300; font-size:13px; color:var(--ink-soft);
+  }
+
+  /* --- status select & empty placeholders --- */
+  .status-select{
+    font-family:var(--sans); font-size:11px; font-weight:600; border-radius:20px;
+    border:1px solid transparent; padding:3px 8px; cursor:pointer;
+  }
+  .status-select.pending{ background:var(--amber-soft); color:var(--amber); }
+  .status-select.ok{ background:var(--teal-soft); color:var(--teal); }
+  .status-select.urgent{ background:var(--red-soft); color:var(--red); }
+  .status-select.inprogress{
+    background:var(--blue-soft); color:var(--blue);
+    font-size:15px; font-weight:800; padding:5px 10px;
+  }
+  .status-select:focus{ outline:2px solid var(--teal); outline-offset:2px; }
+
+  .editable:empty:before{ content:attr(data-placeholder); color:#b3afa5; font-style:italic; }
+
+  /* --- personal progress panel --- */
+  .personal-panel{
+    background:var(--panel); border:1px solid var(--blue); border-radius:10px;
+    padding:16px 18px; margin-bottom:16px; display:none;
+  }
+  .personal-panel-title{ font-size:15px; font-weight:700; margin-bottom:10px; }
+  .inprogress-highlight{
+    font-size:14px; font-weight:700; color:var(--blue); margin-bottom:14px;
+    background:var(--blue-soft); border-radius:8px; padding:8px 12px;
+  }
+  .progress-track{
+    height:22px; background:var(--line); border-radius:11px; overflow:hidden;
+  }
+  .progress-fill{
+    height:100%; background:linear-gradient(90deg, var(--teal), #2fa598);
+    border-radius:11px 0 0 11px; transition:width .4s ease;
+  }
+  .progress-text{
+    font-size:12px; color:var(--ink-soft); margin-top:8px; font-family:var(--mono); font-weight:600;
+  }
+
+  /* --- overview dashboard (front page) --- */
+  .dashboard-grid{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));
+    gap:14px; margin-bottom:22px;
+  }
+  .dash-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:18px 20px; display:flex; flex-direction:column; gap:12px; cursor:pointer;
+    transition:box-shadow .15s, border-color .15s, transform .15s;
+  }
+  .dash-card:hover{
+    border-color:var(--teal); box-shadow:0 6px 18px rgba(28,27,25,.08); transform:translateY(-1px);
+  }
+  .dash-card-head{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .dash-card-name{ font-size:16px; font-weight:700; }
+  .dash-card-pct{ font-size:30px; font-weight:800; font-family:var(--mono); color:var(--teal); line-height:1; }
+  .dash-progress-track{ height:9px; background:var(--line); border-radius:5px; overflow:hidden; }
+  .dash-progress-fill{ height:100%; background:linear-gradient(90deg, var(--teal), #2fa598); border-radius:5px; transition:width .4s ease; }
+  .dash-inprogress{
+    font-size:12px; font-weight:600; color:var(--blue); background:var(--blue-soft);
+    border-radius:8px; padding:8px 10px; line-height:1.5; min-height:34px;
+  }
+  .dash-inprogress.empty{ color:var(--ink-soft); background:transparent; padding:0; font-style:italic; font-weight:400; }
+  .dash-meta{ font-size:11px; color:var(--ink-soft); font-family:var(--mono); }
+
+  /* --- BOM hierarchy view --- */
+  .bom-panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 4px;
+  }
+  .bom-row{
+    display:flex; align-items:center; gap:10px; padding:7px 12px; border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .bom-row:last-child{ border-bottom:none; }
+  .bom-row.depth-0{ background:var(--teal-soft); }
+  .bom-id{ font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); min-width:70px; white-space:nowrap; }
+  .bom-name{ flex:0 0 auto; min-width:160px; max-width:260px; }
+  .bom-row.depth-0 .bom-name{ font-weight:700; color:var(--teal); }
+  .bom-row.depth-1 .bom-name{ font-weight:600; }
+  .bom-badges{ display:flex; flex-wrap:wrap; gap:6px; flex:1; }
+  .bom-badge{
+    font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; white-space:nowrap;
+  }
+  .bom-badge.ok{ background:var(--teal-soft); color:var(--teal); }
+  .bom-badge.pending{ background:var(--amber-soft); color:var(--amber); }
+  .bom-badge.inprogress{ background:var(--blue-soft); color:var(--blue); font-weight:800; }
+  .bom-badge.urgent{ background:var(--red-soft); color:var(--red); }
+
+  /* --- TV mode --- */
+  body.tv-mode{
+    --bg:#1b1e1d;
+    --panel:#242827;
+    --ink:#c9c6bd;
+    --ink-soft:#847f76;
+    --line:#33362f;
+    --teal:#5c9a8d;
+    --teal-soft:rgba(92,154,141,0.16);
+    --amber:#b9905c;
+    --amber-soft:rgba(185,144,92,0.16);
+    --red:#b06b64;
+    --red-soft:rgba(176,107,100,0.16);
+    --blue:#6d8bb0;
+    --blue-soft:rgba(109,139,176,0.16);
+    transition:background .3s ease;
+  }
+  body.tv-mode .dash-card{ box-shadow:none; }
+  body.tv-mode .dash-card.featured{ box-shadow:0 0 0 1px rgba(92,154,141,.25); }
+  body.tv-mode .dash-card:hover{ box-shadow:none; transform:none; }
+  body.tv-mode .shared-badge{ background:var(--teal-soft); border-color:var(--teal); color:var(--teal); }
+  body.tv-mode .load-panel,
+  body.tv-mode .controls .filterbar,
+  body.tv-mode .controls .tabs,
+  body.tv-mode .history-btn,
+  body.tv-mode #exportBtn,
+  body.tv-mode .edit-hint,
+  body.tv-mode .personal-panel,
+  body.tv-mode #ownerView,
+  body.tv-mode #bomView,
+  body.tv-mode #rawView,
+  body.tv-mode .subtitle{
+    display:none !important;
+  }
+  body.tv-mode .dashboard-grid{
+    gap:22px; margin-top:10px;
+  }
+  body.tv-mode h1{ font-size:28px; }
+  .dash-card.featured{
+    grid-column: span 2; padding:30px 34px; border-width:2px; border-color:var(--teal);
+    box-shadow:0 6px 22px rgba(31,122,112,.12);
+  }
+  .dash-card.featured .dash-card-name{ font-size:28px; }
+  .dash-card.featured .dash-card-pct{ font-size:58px; }
+  .dash-card.featured .dash-progress-track{ height:18px; }
+  .dash-card.featured .dash-inprogress{ font-size:16px; padding:12px 16px; min-height:auto; }
+  .dash-card.featured .dash-meta{ font-size:13px; }
+  .dash-card.minor{ padding:10px 12px; opacity:.7; }
+  .dash-card.minor .dash-card-name{ font-size:12px; }
+  .dash-card.minor .dash-card-pct{ font-size:16px; }
+  .dash-card.minor .dash-progress-track{ height:5px; }
+  .dash-card.minor .dash-inprogress{ font-size:9.5px; padding:3px 6px; min-height:auto; line-height:1.3; }
+  .dash-card.minor .dash-meta{ font-size:9px; }
+</style>
+</head>
+<body>
+
+<div class="loading-screen" id="loadingScreen">正在載入共用資料...</div>
+
+<div id="app">
+  <h1>整車 BOM — Owner 追蹤看板 <span class="shared-badge">☁ 共用雲端資料</span></h1>
+  <p class="subtitle">資料來源：Google Sheet 完整車輛 BOM（依供應商整理後的階層版本），共 241 個零件、442 筆獨立任務，狀態預設皆為「待確認」。「BOM 階層檢視」依零件真實父子結構縮排顯示；同一零件若列了多個負責人，已拆成各自獨立的任務，狀態、期限、備註各自獨立，不會互相牽動。</p>
+
+  <div class="dashboard-grid" id="dashboardGrid"></div>
+
+  <div class="load-panel">
+    <div class="load-panel-title">各負責人工作量與狀態分布</div>
+    <div id="loadBars"></div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--teal)"></i>已確認 / 有明確期限</span>
+      <span><i class="dot" style="background:var(--blue)"></i>進行中</span>
+      <span><i class="dot" style="background:var(--amber)"></i>待確認 / 討論中</span>
+      <span><i class="dot" style="background:var(--red)"></i>急件 / 需立即處理</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="tabs">
+      <div class="tab active" data-view="owner">依 Owner 檢視</div>
+      <div class="tab" data-view="bom">BOM 階層檢視</div>
+      <div class="tab" data-view="raw">依原始項次檢視</div>
+    </div>
+    <div class="toolbar-right">
+      <div class="filterbar">
+        我是：
+        <select id="personalSelect">
+          <option value="">— 顯示全部 —</option>
+        </select>
+      </div>
+      <div class="filterbar">
+        篩選狀態：
+        <select id="statusFilter">
+          <option value="all">全部</option>
+          <option value="urgent">急件</option>
+          <option value="pending">待確認</option>
+          <option value="inprogress">進行中</option>
+          <option value="ok">已確認</option>
+        </select>
+      </div>
+      <button class="history-btn" id="historyBtn">📜 編輯歷史</button>
+      <button class="save-btn" id="exportBtn">匯出目前資料 (CSV)</button>
+      <button class="save-btn" id="tvModeBtn">📺 電視模式</button>
+    </div>
+  </div>
+  <div class="edit-hint">💡 「狀態」「期限」「負責人」「備註」都可以直接在表格上編輯（狀態用下拉選單），改完會自動同步到共用雲端，任何人打開此頁都會看到最新內容，所有修改都會留在「編輯歷史」裡不會消失。想只看自己的清單，選上方「我是」，網址會記住你的選擇，下次直接用同一個連結就會自動只顯示你的項目。</div>
+
+  <div class="personal-panel" id="personalPanel"></div>
+
+  <div id="ownerView"></div>
+  <div id="bomView" style="display:none"></div>
+  <div id="rawView" style="display:none"></div>
+</div>
+
+<div class="history-overlay" id="historyOverlay">
+  <div class="history-modal">
+    <div class="history-modal-head">
+      <h2>編輯歷史紀錄</h2>
+      <button class="history-close" id="historyClose">×</button>
+    </div>
+    <div class="history-list" id="historyList"></div>
+  </div>
+</div>
+
+<script>
+const INITIAL_PARTS = [{"refNo": "1", "id": "1", "name": "轉向把手總成", "status": "pending", "deadline": "", "followup": "姝涵", "note": ""}, {"refNo": "1-1", "id": "1-1", "name": "轉向柱總成", "status": "pending", "deadline": "", "followup": "馮課、阿澤、星元", "note": "折疊把手鎖固環來料造型異常，需與供應商對接重新確認圖面，。供應商確認，外觀後續，需打奈落，即使無鬆脫，仍存在搖動間隙大問題需重點改善，看是否提供最終確認用樣品，夏維澤，馮建華。"}, {"refNo": "1-1-1", "id": "1-1-1", "name": "轉向柱", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "主線柱未正常分件，請重新分件，轉向柱龍頭(額頭)設計走線處刀口，無法確認識檔案異常還是溝通異常，即使正常工藝製作內部也會有利邊，需設計護套排除割線隱患。姝涵3D/圖紙輸出，ZEKE補利邊照片，建華給圖供應商確認，圖紙分件破型異常(銲接處，總圖需更新)"}, {"refNo": "1-1-2", "id": "1-1-2", "name": "轉向柱護線套", "status": "pending", "deadline": "", "followup": "姝涵", "note": "太薄安裝異常，請重新設計提案。孔開大，加厚，卡下緣焊接，ZEKE補照片"}, {"refNo": "1-1-3", "id": "1-1-3", "name": "轉向柱掛勾", "status": "pending", "deadline": "", "followup": "姝涵", "note": "3D造型件R角異常圖資問題。3D修正(R角消失，鏡射補圖)"}, {"refNo": "1-1-4", "id": "1-1-4", "name": "內六角紐扣頭螺栓 M8x30", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "無/富厚供應商組件。使用富後標準銀色，馮建華要顏色訊息表面處理給姝涵入BOM"}, {"refNo": "1-1-5", "id": "1-1-5", "name": "小型六角螺帽 M8 (外徑≦13.6)", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "無/富厚供應商組件。使用富後標準銀色，馮建華要顏色訊息表面處理給姝涵入BOM"}, {"refNo": "1-1-6", "id": "1-1-6", "name": "轉向把手管/摺疊用套環", "status": "pending", "deadline": "", "followup": "姝涵", "note": "無/富厚供應商組件(活動套管與把手管未分件) 左右把為旋入固定，樣品會鬆脫，需溝通修正供應商設計。打膠後後續測試驗證檢驗環節確認，馮建華。伸縮固定環造型提供檔案給夏經理確認。"}, {"refNo": "1-1-7", "id": "1-1-7", "name": "摺疊下座固定螺絲", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "3D圖面欠缺摺疊盒下座夾緊用螺栓。富後，圖紙3D表面處理確認入BOM"}, {"refNo": "1-1-8", "id": "1-1-8", "name": "1-1/8 豎管內牙內六角通孔螺栓", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "3D圖面欠缺摺疊盒下座拉緊前懸吊用特製內六角螺栓。廠內共用件，馮建華，確認，給圖，給料號，姝涵入BOM，更新3D。"}, {"refNo": "1-1-9", "id": "1-1-9", "name": "把手管塞", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "無/RP2首樣未裝，建議改名-把手或握套管塞。廠內共用件，馮建華，確認，給圖，給料號，姝涵入BOM，更新3D。"}, {"refNo": "1-3", "id": "1-3", "name": "左側後視鏡", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "本BOM缺加入。價格過高，使用方式與造型影響確認，給圖尺寸確認，ANGELO協助看有無供應商其他供應商選擇。夏維澤確認能否改用EH002後照鏡，馮建華協助訊問002後照鏡供應商目錄"}, {"refNo": "1-4", "id": "1-4", "name": "左側把手握套", "status": "pending", "deadline": "", "followup": "馮課、阿澤、星元", "note": "型號規格配套非通孔，開加工模與端子鏡問題一起確認，夏維澤，馮建華確認，更新料號型號"}, {"refNo": "1-5", "id": "1-5", "name": "左油壓煞把總成", "status": "pending", "deadline": "7月22日", "followup": "Ryan、阿澤、星元", "note": "線材規格長度定義RYAN"}, {"refNo": "1-6", "id": "1-6", "name": "左開關按鍵總成", "status": "pending", "deadline": "7月22日", "followup": "Ryan、阿澤、星元", "note": "線材規格長度定義RYAN，油壓管長度定義夏維澤"}, {"refNo": "1-7", "id": "1-7", "name": "儀錶總成", "status": "pending", "deadline": "7月22日", "followup": "Ryan、阿澤、星元", "note": "電控軟體韌問題追蹤與版本寫在獨立分頁。線材規格長度定義RYAN"}, {"refNo": "1-8", "id": "1-8", "name": "右油壓煞把總成", "status": "pending", "deadline": "7月22日", "followup": "Ryan、阿澤、星元", "note": "線材規格長度定義RYAN，油壓管長度定義夏維澤"}, {"refNo": "1-9", "id": "1-9", "name": "節流閥開關總成", "status": "pending", "deadline": "7月22日", "followup": "Ryan、阿澤、星元", "note": "線材規格長度定義RYAN"}, {"refNo": "1-4-1", "id": "1-4-1", "name": "儀錶韌體", "status": "pending", "deadline": "", "followup": "Fish", "note": "無/RP2首樣未裝"}, {"refNo": "2", "id": "2", "name": "1-⅛七件式限位碗組", "status": "pending", "deadline": "", "followup": "馮課、阿澤、星元、Cloud", "note": "無，BOM修正，碗組為獨立總件型號。(一個總成，多個分件)"}, {"refNo": "2-1", "id": "2-1", "name": "防塵蓋", "status": "pending", "deadline": "", "followup": "馮課、阿澤、星元、Cloud", "note": "馮建華給圖給夏經理-確認轉向角度，現行版本角度太大，要縮小至45度，珠槽組若能改軸承，提供價格更新確認"}, {"refNo": "2-2", "id": "2-2", "name": "壓縮環", "status": "pending", "deadline": "", "followup": "馮課、阿澤、星元、Cloud", "note": "組裝易掉珠，卡位，不良率與報廢率偏高(3/1)，此車在流水線上無法倒立裝配後翻轉，建議更換軸承碗組，或後續備料需1:3備料，確認小下塞弧面位置尺寸，現珠槽無法平穩放置。馮建華給圖給夏經理-確認轉向角度，現行版本角度太大，要縮小至45度，珠槽組若能改軸承，提供價格更新確認"}, {"refNo": "2-3", "id": "2-3", "name": "軸承", "status": "pending", "deadline": "", "followup": "馮課、阿澤、星元、Cloud", "note": "馮建華給圖給夏經理-確認轉向角度，現行版本角度太大，要縮小至45度，珠槽組若能改軸承，提供價格更新確認"}, {"refNo": "2-4", "id": "2-4", "name": "上碗", "status": "pending", "deadline": "", "followup": "馮課、阿澤、星元、Cloud", "note": "馮建華給圖給夏經理-確認轉向角度，現行版本角度太大，要縮小至45度，珠槽組若能改軸承，提供價格更新確認"}, {"refNo": "2-5", "id": "2-5", "name": "下碗", "status": "pending", "deadline": "", "followup": "馮課、阿澤、星元、Cloud", "note": "馮建華給圖給夏經理-確認轉向角度，現行版本角度太大，要縮小至45度，珠槽組若能改軸承，提供價格更新確認"}, {"refNo": "2-6", "id": "2-6", "name": "珠槽組", "status": "pending", "deadline": "", "followup": "馮課、阿澤、星元、Cloud", "note": "馮建華給圖給夏經理-確認轉向角度，現行版本角度太大，要縮小至45度，珠槽組若能改軸承，提供價格更新確認"}, {"refNo": "2-7", "id": "2-7", "name": "小下塞(肩座圈/碗組底座)", "status": "pending", "deadline": "", "followup": "馮課、阿澤、星元、Cloud", "note": "馮建華給圖給夏經理-確認轉向角度，現行版本角度太大，要縮小至45度，珠槽組若能改軸承，提供價格更新確認"}, {"refNo": "3", "id": "3", "name": "主車架總成", "status": "pending", "deadline": "", "followup": "Cloud", "note": "主要問題為生產工序"}, {"refNo": "3-1", "id": "3-1", "name": "主車架總成", "status": "pending", "deadline": "", "followup": "Cloud", "note": ""}, {"refNo": "3-29", "id": "3-2", "name": "主車架-上環部 總成", "status": "pending", "deadline": "8月5日", "followup": "Cloud", "note": "需重新討論考量焊道位置，以及焊道表面處理方式，若委外自動彎管機，保證直端接彎的直段>70mm，所有內R60以上，目前設計可彎折，供應商試作影片在CLOUD 與VICTOR，局部有折皺與壓扁，若可接受，則可以目前R角進行。。夏維澤 CLOUD~一個半月修完，頭兩週先進行銲接點位與前鋁行架外觀確認>8/5，中間確認與JASON定易2次>8/22、9/5，安排時間確認開門方式，暫定9/21前完成整車輸出。"}, {"refNo": "3-29-1", "id": "3-2-1", "name": "主車架-上環部-前段-A", "status": "pending", "deadline": "8月5日", "followup": "馮課、Cloud", "note": "前側架裝配用孔位，加工為偏離中心線的斜角加工，加工易偏斜，影響生產良率，其中178/168號分件開孔偏大，建議CAE分析調整，需修改對手配件，孔位直上直下，否則裝配鎖不到易對手件滑牙或螺絲崩牙。。分段，前後主車架焊接點提案2周，確認JASON 建華同步。"}, {"refNo": "3-29-2", "id": "3-2-2", "name": "主車架-上環部-前段-B", "status": "pending", "deadline": "", "followup": "Cloud", "note": "129+130+133+134等6顆碰焊螺柱建議改用壓鉚螺柱以配合廠內製程。307+308號件開孔固定點位離邊太近，且無法安裝塑膠對手件(倒立盲孔)。305+306號件與166號件與101號件共點，無強度支撐需求，交介面導致組裝困難，建議移除305+306，並修改166號造型避免安裝路徑干涉。外觀確認完後再一次整改"}, {"refNo": "3-29-3", "id": "3-2-3", "name": "主車架-上環部-後段", "status": "pending", "deadline": "", "followup": "Cloud", "note": "153號螺母設計未到底，無法蘭，焊接時無法定位限高，螺母會掉落至管中，需修改設計。。螺母加法蘭"}, {"refNo": "3-33", "id": "3-3", "name": "主車架頭管組", "status": "pending", "deadline": "", "followup": "Cloud", "note": "無分件料號，前燈支架為一體式，3D裝配無螺絲螺母，實際配套後，螺絲無法拉動支架產生變形量固定燈具，且支架過大影響殼體安裝，安裝路徑不良，無法緊固，需重新定義設計。前燈螺絲改M6"}, {"refNo": "3-34", "id": "3-4", "name": "主車架斜管組", "status": "pending", "deadline": "", "followup": "馮課、Cloud", "note": "67號件，改為打凸點固定，限設計為焊接另件會影想組裝，126號螺母改成壓鉚螺絲柱，以配合廠內現有機台，與安裝手順路徑。。喇叭防轉柱子，改打凸折彎，部件改薄；建華ZEKE確認喇叭最終型號"}, {"refNo": "3-35", "id": "3-5", "name": "主車架下管組-右", "status": "pending", "deadline": "", "followup": "Cloud", "note": "吊耳設計異常相近，請修改為同尺寸(目前長邊為19.8/20.7/16.88三種共六件)，並修改對手件塑膠BOSS位置，確保模具費用，避免料件辨識異常。。吊耳定義變更，待外觀與功能結構確認後再變更，(側殼上掀開啟式)"}, {"refNo": "3-36", "id": "3-6", "name": "主車架下管組-左", "status": "pending", "deadline": "", "followup": "Cloud", "note": "鎖耳設計異常相近，請修改為同尺寸(目前長邊為26.64/26.43/26.28/26.61四種共八件)，並修改對手件塑膠BOSS位置，確保模具費用，避免料件辨識異常。。吊耳定義變更，待外觀與功能結構確認後再變更，(側殼上掀開啟式)"}, {"refNo": "3-37", "id": "3-7", "name": "主車架刀閘固定座底板組", "status": "pending", "deadline": "", "followup": "Cloud", "note": "166號件走線開口過小，刀閘出線彎折嚴重，有漏電風險，需加大出線口，閃避線材焊接出線位置。。刀閘公端接線出口處的板金件預留走線空間過小"}, {"refNo": "3-38", "id": "3-8", "name": "主車架刀閘固定座底板組", "status": "pending", "deadline": "", "followup": "Cloud", "note": "141號件建議配合廠內設備改使用壓鉚螺柱"}, {"refNo": "3-39", "id": "3-9", "name": "主車架後段座椅墊卡鎖用支架組", "status": "pending", "deadline": "", "followup": "Cloud、姝涵", "note": "323+324改使用等肉厚(現為3+2mm)板金建議使用一體成形2mm板金確保尺寸與安裝間隙，需補強的地方直接焊3角片斜撐補強，省模具費，326+107+1212/3螺母有局部限制無法碰焊(角度與位置)需重新考量製程與螺母對應關係。324號零件孔位與對應螺絲與對手件(座椅墊卡鎖)螺絲號數皆為圖紙錯誤，並因未分件無螺絲導致備料異常。需修改圖資。。改用2.6mm摺盒，確認一下配件用螺母是否取消，3D重疊要拿掉"}, {"refNo": "3-40", "id": "3-10", "name": "主車架後段座椅墊卡鎖用支架組", "status": "pending", "deadline": "", "followup": "馮課、Cloud", "note": "52+118號件此促設計碰焊加點焊無法正常生產，沒有點焊用定位，建議改採板金開口折彎裝夾片螺母，降低製造成本，並增加容錯空間。用夾片螺母，鎖點改板金折彎"}, {"refNo": "3-41", "id": "3-11", "name": "主車架後段座椅墊卡鎖用支架組", "status": "pending", "deadline": "", "followup": "Cloud", "note": "325+119與其鏡向位螺母因為板金件上下位阻擋無法碰焊，請修改鎖固機制。支架組馮建華語遠順溝通,提出建議解決方案供CLOUD/VICTOR/ZEKE"}, {"refNo": "4", "id": "4", "name": "副車架組", "status": "pending", "deadline": "", "followup": "阿澤、星元、Cloud", "note": "主要為存廢以及加工生產通用性問題，未拆件。"}, {"refNo": "4-1", "id": "4-1", "name": "副車架-左焊接總成", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "副車架存廢請與PD討論確認，主車架上的裝配用圓孔建議套襯套焊接封邊，表面處理易破壞鏽蝕。鎖固點為鑄件，未分件請分件處理。。夏經理協助提案>8/5"}, {"refNo": "4-1-1", "id": "4-1-1", "name": "副車架-左焊接組", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "未拆件。夏經理協助提案>8/5"}, {"refNo": "4-1-1-1", "id": "4-1-1-1", "name": "副車架-左-彎管", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "未拆件。夏經理協助提案>8/5"}, {"refNo": "4-1-1-2", "id": "4-1-1-2", "name": "副車架-左-前固定座", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "未拆件。夏經理協助提案>8/5"}, {"refNo": "4-1-1-3", "id": "4-1-1-3", "name": "副車架-左-後固定座", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "未拆件。夏經理協助提案>8/5"}, {"refNo": "4-2", "id": "4-2", "name": "副車架-右焊接總成", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "副車架存廢請與PD討論確認。夏經理協助提案>8/5"}, {"refNo": "4-2-1", "id": "4-2-1", "name": "副車架-左焊接組", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "夏經理協助提案>8/5"}, {"refNo": "4-2-1-1", "id": "4-2-1-1", "name": "副車架-左-彎管", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "夏經理協助提案>8/5"}, {"refNo": "4-2-1-2", "id": "4-2-1-2", "name": "副車架-左-前固定座", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "夏經理協助提案>8/5"}, {"refNo": "4-2-1-3", "id": "4-2-1-3", "name": "副車架-左-後固定座", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "夏經理協助提案>8/5"}, {"refNo": "4-3", "id": "4-3", "name": "內六角紐扣頭螺栓 M8x40", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "請於規格處標示標準件牌號表面處理樣式顏色，防鏽與抗拉強度相關訊息。夏經理協助提案>8/5"}, {"refNo": "4-4", "id": "4-4", "name": "副車架-固定片", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、Cloud", "note": "副車架存廢請與PD討論確認。夏經理協助提案>8/5"}, {"refNo": "5", "id": "5", "name": "主車架配件組", "status": "pending", "deadline": "", "followup": "Cloud", "note": ""}, {"refNo": "4-14", "id": "34", "name": "喇叭 12V", "status": "pending", "deadline": "", "followup": "馮課、Cloud", "note": "建華確認供應商，提供圖紙給CLOUD"}, {"refNo": "4-7", "id": "35", "name": "主鎖頭", "status": "pending", "deadline": "TW>CH 樣品", "followup": "馮課、Cloud", "note": "此件與4-12鋼索組合未搭配螺絲需新增入BOM，鎖頭位置與摺疊前管什得手柄相對位置易生操作干涉。CLOUD支架上下移確認走線，鋼索組螺絲要入BOM"}, {"refNo": "4-9", "id": "35-1", "name": "O型環 Ø2.0X11", "status": "pending", "deadline": "", "followup": "Cloud", "note": "焊接或組裝容易異常，倒向裝配困難，同時與鑰使鎖舌做動間隙過小，生產時易卡死。CLOUD評估是否需要保留"}, {"refNo": "4-19-10", "id": "36", "name": "方向燈總成", "status": "pending", "deadline": "", "followup": "Cloud", "note": "請在規格處標示廠牌型號線長與螺絲配件包含物。附螺母，先用自帶NSS-72小時無紅鏽"}, {"refNo": "4-19-8", "id": "37", "name": "牌照燈", "status": "pending", "deadline": "", "followup": "馮課、Cloud", "note": "請在規格處標示廠牌型號線長與螺絲配件包含物。買的螺絲?設計長度尺寸與供規尺寸需要跟供應商確認"}, {"refNo": "4-19-2", "id": "38", "name": "反光片(後反光片)", "status": "pending", "deadline": "", "followup": "Cloud", "note": "對手件4-19牌照架孔位不符，未預留裝配間隙。CLOUD協助確認是否需修改"}, {"refNo": "4-19-7", "id": "39", "name": "側反光片", "status": "pending", "deadline": "", "followup": "Cloud", "note": ""}, {"refNo": "4-19-4", "id": "40", "name": "側反光片座", "status": "pending", "deadline": "", "followup": "Cloud", "note": "請於規格處定義材質與顏色與抗UV要求。擴大解釋:後續請協助確認定義所有塑膠件材質，抗UV/UL94耐火阻止燃需求"}, {"refNo": "", "id": "40-1", "name": "六角螺栓與羅母未入BOM(鎖反光片基座)", "status": "pending", "deadline": "", "followup": "Cloud", "note": "六角螺栓與羅母未入BOM"}, {"refNo": "", "id": "40-2", "name": "六角螺栓與羅母未入BOM(鎖反光片基座)", "status": "pending", "deadline": "", "followup": "Cloud", "note": "六角螺栓與羅母未入BOM"}, {"refNo": "4-2", "id": "41", "name": "腳柱凸緣襯套", "status": "pending", "deadline": "", "followup": "Cloud", "note": "HL輸出分件錯誤導致組裝異常，新檔案已獨立分件"}, {"refNo": "4-3", "id": "42", "name": "主車架管塞", "status": "pending", "deadline": "", "followup": "Cloud", "note": "自攻羅斯與車架孔位搭配異常，自攻未定位鎖入會造成管塞安裝高度不一致。改PP 加鎖孔"}, {"refNo": "4-5", "id": "43", "name": "座墊絞鍊固定架", "status": "pending", "deadline": "TW>CH 樣品", "followup": "馮課、Cloud", "note": "板金位無避空無法碰焊，長條孔未設計固定位置無法碰焊，需修改設計。台灣買，優先找台灣中國廠交貨"}, {"refNo": "4-8", "id": "43-1", "name": "導柱 17- 18", "status": "pending", "deadline": "", "followup": "Cloud", "note": "焊接或組裝容易異常，倒向裝配困難。CLOUD協助確認主鎖與周遭零配件生產裝配定義"}, {"refNo": "4-12", "id": "44", "name": "座墊鎖鋼索", "status": "pending", "deadline": "", "followup": "Cloud", "note": "鋼鎖抵台時外殼已生鏽，需要求供應商對鋼索外殼做防鏽處理。找走線位評估電池艙內 CLOUD"}, {"refNo": "4-16", "id": "45", "name": "腳踏板", "status": "pending", "deadline": "", "followup": "Cloud", "note": "HL未依需求塗裝為黑色，共用件，設計要求為黑色。姝涵更新規格，腳踏板PD需求向前位移"}, {"refNo": "4-17", "id": "45-1", "name": "對鎖螺栓 M8xP1.0x12", "status": "pending", "deadline": "", "followup": "馮課、Cloud", "note": "HL為拆件備料，請注意後續採購需求。。馮建華提供料號，品名規格圖紙給姝涵更新"}, {"refNo": "4-18", "id": "45-2", "name": "對鎖螺母 M8xØ8x30", "status": "pending", "deadline": "", "followup": "馮課、Cloud", "note": "HL為拆件備料，請注意後續採購需求。。馮建華提供料號，品名規格圖紙給姝涵更新"}, {"refNo": "4-19", "id": "46", "name": "牌照支架總成", "status": "pending", "deadline": "", "followup": "Cloud", "note": "主要為生產製造問題與金屬疲勞問題。鎖點位置車架固定點下緣與牌照支架組配產生支點"}, {"refNo": "4-19-1", "id": "46-1", "name": "牌照支架", "status": "pending", "deadline": "", "followup": "Cloud", "note": "板金成形條件繪製異常，分段點無R角模具易損。CLOUD修正板金金屬成形方式條件與結構"}, {"refNo": "4-21", "id": "47", "name": "MCU盒總成", "status": "pending", "deadline": "7月24日", "followup": "Ryan、Cloud", "note": "主要問題總成太小，裝配走線設計不良，電氣件鎖固手順異常。總體走線修改/後續檢討確認所有電系固定方式"}, {"refNo": "4-21-1", "id": "47-1", "name": "MCU盒", "status": "pending", "deadline": "7月24日", "followup": "Ryan、Cloud", "note": "料件與碰焊螺栓未分件。總體走線修改/後續檢討確認所有電系固定方式"}, {"refNo": "4-22", "id": "47-2", "name": "MCU盒扣件總成", "status": "pending", "deadline": "7月24日", "followup": "Ryan、Cloud", "note": "主要為無法正常安裝使用。總體走線修改/後續檢討確認所有電系固定方式"}, {"refNo": "4-22-1", "id": "47-3", "name": "MCU盒扣件", "status": "pending", "deadline": "7月24日", "followup": "Ryan、Cloud", "note": "金屬件刮皮破線可能性高，需重新佈線。總體走線修改/後續檢討確認所有電系固定方式"}, {"refNo": "4-22-2", "id": "47-4", "name": "MCU泡棉 34x20x11.9 mm (附背膠)", "status": "pending", "deadline": "7月24日", "followup": "Ryan、Cloud", "note": "無法正常使用安裝。總體走線修改/後續檢討確認所有電系固定方式"}, {"refNo": "4-22-3", "id": "47-5", "name": "MCU泡棉 21.3X20X25.8 mm (附背膠)", "status": "pending", "deadline": "7月24日", "followup": "Ryan、Cloud", "note": "無法正常使用安裝。總體走線修改/後續檢討確認所有電系固定方式"}, {"refNo": "4-28", "id": "48", "name": "門板橡膠", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "馮建華提供料號，品名規格圖紙給姝涵更新。馮建華提供料號，品名規格圖紙給姝涵更新"}, {"refNo": "5", "id": "5", "name": "前懸吊總成", "status": "pending", "deadline": "", "followup": "馮課", "note": "YY新制前叉，台北需提前確認，設定需求與基本規格。馮建華/YY 前叉本次樣品做動不良，需請供應商重製/更新零件"}, {"refNo": "5-1", "id": "5-1", "name": "前叉總成", "status": "pending", "deadline": "", "followup": "馮課", "note": "YY新制前叉，台北需提前確認。馮建華/YY 前叉本次樣品做動不良，需請供應商重製/更新零件"}, {"refNo": "5-1-1", "id": "5-1-1", "name": "前叉", "status": "pending", "deadline": "", "followup": "馮課", "note": "BOM架階前叉為一個供應商，無需分左右避震器與前叉。馮建華/YY 前叉本次樣品做動不良，需請供應商重製/更新零件"}, {"refNo": "5-1-2", "id": "5-1-2", "name": "右避震器", "status": "pending", "deadline": "", "followup": "馮課", "note": "BOM架階前叉為一個供應商，無需分左右避震器與前叉。馮建華/YY 前叉本次樣品做動不良，需請供應商重製/更新零件"}, {"refNo": "5-1-3", "id": "5-1-3", "name": "左避震器", "status": "pending", "deadline": "", "followup": "馮課", "note": "BOM架階前叉為一個供應商，無需分左右避震器與前叉。馮建華/YY 前叉本次樣品做動不良，需請供應商重製/更新零件"}, {"refNo": "5-2", "id": "5-2", "name": "前油管固定夾", "status": "pending", "deadline": "", "followup": "馮課", "note": "請標註公益材質規格表面處理需求並分階。馮建華/YY 前叉本次樣品做動不良，需請供應商重製/更新零件"}, {"refNo": "5-3", "id": "5-3", "name": "線夾螺栓 M4x8", "status": "pending", "deadline": "", "followup": "馮課", "note": "請於規格處標示標準件牌號表面處理樣式顏色。馮建華/YY 前叉本次樣品做動不良，需請供應商重製/更新零件"}, {"refNo": "5-4", "id": "5-4", "name": "煞車卡鉗總成", "status": "pending", "deadline": "", "followup": "馮課", "note": "請於規格處標示標準件牌號與供應商與內含配件確認。馮建華/YY 前叉本次樣品做動不良，需請供應商重製/更新零件"}, {"refNo": "5-4-1", "id": "5-4-1", "name": "卡鉗", "status": "pending", "deadline": "", "followup": "馮課", "note": "請於規格處標示標準件牌號與供應商與內含配件確認。捷克蘭溪-D7下泵-配T2.3碟盤"}, {"refNo": "5-4-2", "id": "5-4-2", "name": "煞車來令片組", "status": "pending", "deadline": "", "followup": "馮課", "note": "請於規格處標示標準件牌號與供應商與內含配件確認。捷克蘭溪YK-52Y 鐵積背板來令片"}, {"refNo": "5-4-3", "id": "5-4-3", "name": "前剎車油管組", "status": "pending", "deadline": "", "followup": "馮課", "note": "請確認長度，RP2首樣無料件安裝確認。CLOUD 確認長度，姝涵改BOM"}, {"refNo": "5-5", "id": "5-5", "name": "六角法蘭螺栓 M6x20", "status": "pending", "deadline": "", "followup": "馮課", "note": "螺栓請確認法蘭螺栓是否需要滑司。CLOUD 確認長度，姝涵改BOM"}, {"refNo": "5-6", "id": "5-6", "name": "前叉螺姆", "status": "pending", "deadline": "", "followup": "姝涵", "note": "姝涵確認此件為何，歸類何處"}, {"refNo": "6", "id": "6", "name": "前輪總成", "status": "pending", "deadline": "", "followup": "昶閔、SAM", "note": "千江電機油封噪音異常，電機相關主管需確認供應商與後續處置作為。昶閔確認後續電機供應商與溝通最終決議"}, {"refNo": "6-1", "id": "6-1", "name": "前馬達總成 (線長≦550mm)", "status": "pending", "deadline": "", "followup": "馮課、昶閔、SAM", "note": "請確認馬達線長≦不能用於規格標記請改用+-工差。馬達碟盤安裝接觸面要求再車一刀"}, {"refNo": "6-2", "id": "6-2", "name": "輪胎 3.00-8", "status": "pending", "deadline": "", "followup": "姝涵", "note": "請標示品牌型號規格。3D圖面比例稍許異常(建議縮比0.96)"}, {"refNo": "6-3", "id": "6-3", "name": "輪圈氣嘴", "status": "pending", "deadline": "", "followup": "姝涵、昶閔、SAM", "note": "請標示品牌型號規格。姝函與昶閔/SAM 確認輪胎/氣嘴/墊片滑司螺母/架BOM方式"}, {"refNo": "6-4", "id": "6-4", "name": "煞車碟盤", "status": "pending", "deadline": "", "followup": "姝涵", "note": "煞車碟盤與卡前為通一個供應商。姝函更新"}, {"refNo": "6-5", "id": "6-5", "name": "內六角紐扣螺栓M5x12 (0.8P)", "status": "pending", "deadline": "", "followup": "姝涵", "note": "煞車碟盤與卡前為通一個供應商。姝函更新"}, {"refNo": "6-6", "id": "6-6", "name": "華司 10x16x4", "status": "pending", "deadline": "", "followup": "姝涵、昶閔、SAM", "note": "此非一般滑司，維電機供應商特供件。姝函與昶閔/SAM 確認輪胎/氣嘴/墊片滑司螺母/架BOM方式"}, {"refNo": "6-7", "id": "6-7", "name": "止轉華司 M14x10x4", "status": "pending", "deadline": "", "followup": "姝涵、昶閔、SAM", "note": "此非一般滑司，維電機供應商特供件。姝函與昶閔/SAM 確認輪胎/氣嘴/墊片滑司螺母/架BOM方式"}, {"refNo": "6-8", "id": "6-8", "name": "六角法蘭螺帽 M14", "status": "pending", "deadline": "", "followup": "阿澤、星元、昶閔", "note": "螺牙裸露太長，標準2~3牙，使用者易刮傷或牙損。螺牙長度夏經理與昶閔確認是否需要修改"}, {"refNo": "7", "id": "7", "name": "避震器總成", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "請加註品牌規格，目前RP2已改成翼友。姝函與馮建華確認"}, {"refNo": "7-1", "id": "7-1", "name": "避震器本體 (含套管)", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "套管多數為訂製件，請與本體分開建BOM。姝函與馮建華確認"}, {"refNo": "7-2", "id": "7-2", "name": "對鎖螺絲 M6x15", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "本次翼友未提供對鎖螺絲螺母及其組裝配件。姝函與馮建華確認"}, {"refNo": "7-3", "id": "7-3", "name": "對鎖螺母 M6xØ7.9x51.5", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "本次翼友未提供對鎖螺絲螺母及其組裝配件。姝函與馮建華確認"}, {"refNo": "7-4", "id": "7-4", "name": "平華斯 M6X12.5X1.6T", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "本次翼友未提供對鎖螺絲螺母及其組裝配件。姝函與馮建華確認"}, {"refNo": "7-5", "id": "7-5", "name": "彈簧華斯 M6x1.5T", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "本次翼友未提供對鎖螺絲螺母及其組裝配件。姝函與馮建華確認"}, {"refNo": "8", "id": "8", "name": "後懸吊總成", "status": "pending", "deadline": "", "followup": "Cloud", "note": "台北檔案未分件，彎管條件設定異常，無法正常生產。CLOUD 協助確認判斷是否需要修改"}, {"refNo": "8-1", "id": "8-1", "name": "後搖臂", "status": "pending", "deadline": "", "followup": "阿澤、星元、Cloud", "note": "後搖臂檔案未分件，又包含螺母與襯套。泥除造型修改，夏經理"}, {"refNo": "8-1-1", "id": "8-1-1", "name": "後搖臂右側上管", "status": "pending", "deadline": "", "followup": "Cloud", "note": "不符合一般製造邏輯條件的切口"}, {"refNo": "8-1-2", "id": "8-1-2", "name": "後搖臂右側下管", "status": "pending", "deadline": "", "followup": "姝涵", "note": "順管材R"}, {"refNo": "8-1-3", "id": "8-1-3", "name": "後搖臂右側板件", "status": "pending", "deadline": "", "followup": "姝涵", "note": "順管材R"}, {"refNo": "8-1-4", "id": "8-1-4", "name": "後搖臂左側上管", "status": "pending", "deadline": "", "followup": "姝涵", "note": "順管材R"}, {"refNo": "8-1-5", "id": "8-1-5", "name": "後搖臂左側下管", "status": "pending", "deadline": "", "followup": "姝涵", "note": "順管材R"}, {"refNo": "8-1-6", "id": "8-1-6", "name": "後搖臂左側板件", "status": "pending", "deadline": "", "followup": "姝涵", "note": "順管材R"}, {"refNo": "8-1-7", "id": "8-1-7", "name": "後搖臂橫桿", "status": "pending", "deadline": "", "followup": "姝涵", "note": "順管材R"}, {"refNo": "8-1-8", "id": "8-1-8", "name": "後搖臂圓柱", "status": "pending", "deadline": "", "followup": "姝涵", "note": "順管材R"}, {"refNo": "8-1-9", "id": "8-1-9", "name": "後搖臂角鋼", "status": "pending", "deadline": "", "followup": "姝涵", "note": "順管材R"}, {"refNo": "8-1-10", "id": "8-1-10", "name": "後搖臂槽鋼", "status": "pending", "deadline": "", "followup": "姝涵", "note": "順管材R"}, {"refNo": "8-2", "id": "8-2", "name": "橡膠襯套", "status": "pending", "deadline": "", "followup": "馮課、Cloud", "note": "目前價高且非現有供應商。台灣廠要驗廠，不然就HL供應商"}, {"refNo": "8-3", "id": "8-3", "name": "後搖臂管塞", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "請確認材質與固定方式，目前設計會鬆脫/排氣不良。建華找料號，給資訊到姝涵更新"}, {"refNo": "8-4", "id": "8-4", "name": "卡鉗座", "status": "pending", "deadline": "", "followup": "姝涵、Cloud", "note": "請修改改使用供應商標準件。CLOUD 確認長度，姝涵改BOM"}, {"refNo": "8-5", "id": "8-5", "name": "煞車卡鉗總成", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "請於規格處標示標準件牌號與供應商與內含配件確認。要換卡鉗型號45KMH為另外一款"}, {"refNo": "8-5-1", "id": "8-5-1", "name": "卡鉗", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "請於規格處標示標準件牌號與供應商與內含配件確認。要換卡鉗型號45KMH為另外一款"}, {"refNo": "8-5-2", "id": "8-5-2", "name": "煞車來令片組", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "請於規格處標示標準件牌號與供應商與內含配件確認。CLOUD 確認長度，姝涵改BOM"}, {"refNo": "8-5-3", "id": "8-5-3", "name": "前剎車油管組", "status": "pending", "deadline": "", "followup": "Cloud、馮課、姝涵", "note": "請確認長度，RP2首樣無料件安裝確認。CLOUD 確認長度，姝涵改BOM"}, {"refNo": "8-6", "id": "8-6", "name": "後擋泥板", "status": "pending", "deadline": "", "followup": "Cloud、馮課、姝涵、阿澤、星元", "note": "料件與ＢＯＭ重複，後擋泥板前緣螺絲螺母固定安裝困難。CLOUD/夏維澤飛濺測試"}, {"refNo": "9", "id": "9", "name": "後輪總成", "status": "pending", "deadline": "", "followup": "昶閔、SAM", "note": ""}, {"refNo": "9-1", "id": "9-1", "name": "後馬達總成 (線長550mm)", "status": "pending", "deadline": "", "followup": "阿澤、昶閔、SAM", "note": "請確認馬達線長≦不能用於規格標記請改用+-工差。馬達軸心長度縮短確認夏維澤"}, {"refNo": "9-2", "id": "9-2", "name": "輪胎 3.00-8", "status": "pending", "deadline": "", "followup": "姝涵", "note": "請標示品牌型號規格。姝函與昶閔/SAM 確認輪胎/氣嘴/墊片滑司螺母/架BOM方式"}, {"refNo": "9-3", "id": "9-3", "name": "輪圈氣嘴", "status": "pending", "deadline": "", "followup": "姝涵", "note": "請標示品牌型號規格。姝函與昶閔/SAM 確認輪胎/氣嘴/墊片滑司螺母/架BOM方式"}, {"refNo": "9-4", "id": "9-4", "name": "煞車碟盤", "status": "pending", "deadline": "", "followup": "姝涵", "note": "煞車碟盤與卡前為通一個供應商。碟盤與卡鉗組請與與馬達階層分開"}, {"refNo": "9-5", "id": "9-5", "name": "內六角紐扣螺栓M5x12(0.8P)", "status": "pending", "deadline": "", "followup": "姝涵", "note": "煞車碟盤與卡前為通一個供應商。姝函與昶閔/SAM 確認輪胎/氣嘴/墊片滑司螺母/架BOM方式"}, {"refNo": "9-6", "id": "9-6", "name": "華司 10x16x4", "status": "pending", "deadline": "", "followup": "姝涵", "note": "此非一般滑司，維電機供應商特供件。姝函與昶閔/SAM 確認輪胎/氣嘴/墊片滑司螺母/架BOM方式"}, {"refNo": "9-7", "id": "9-7", "name": "止轉華司 M14x10x4", "status": "pending", "deadline": "", "followup": "姝涵", "note": "此非一般滑司，維電機供應商特供件。姝函與昶閔/SAM 確認輪胎/氣嘴/墊片滑司螺母/架BOM方式"}, {"refNo": "9-8", "id": "9-8", "name": "六角法蘭螺帽 M14", "status": "pending", "deadline": "", "followup": "姝涵", "note": "螺牙裸露太長，標準2~3牙，使用者易刮傷或牙損。姝函與昶閔/SAM 確認輪胎/氣嘴/墊片滑司螺母/架BOM方式"}, {"refNo": "9-9", "id": "9-9", "name": "圓蓋螺帽 M14", "status": "pending", "deadline": "", "followup": "阿澤、Cloud", "note": "請確認是否加入使用。請確認是否加入使用，夏維澤"}, {"refNo": "10", "id": "10", "name": "主腳架總成", "status": "pending", "deadline": "", "followup": "Cloud", "note": "主要問題為腳柱開關行程與做動異常無法感應"}, {"refNo": "10-1", "id": "10-1", "name": "主腳架", "status": "pending", "deadline": "", "followup": "Cloud", "note": "腳架無分件，請重新分件。CLOUD"}, {"refNo": "10-1-1", "id": "10-1-1", "name": "主腳架本體", "status": "pending", "deadline": "", "followup": "Cloud", "note": "CLOUD"}, {"refNo": "10-1-2", "id": "10-1-2", "name": "主腳架側柱支腳", "status": "pending", "deadline": "", "followup": "Cloud", "note": "CLOUD"}, {"refNo": "10-2", "id": "10-2", "name": "減震橡膠", "status": "pending", "deadline": "", "followup": "Cloud", "note": "設計太低無法作用，香菇頭太大無法入孔。CLOUD"}, {"refNo": "10-3", "id": "10-3", "name": "主腳架開關", "status": "pending", "deadline": "", "followup": "Cloud", "note": "未確認供應商，未確認來源。CLOUD"}, {"refNo": "10-4", "id": "10-4", "name": "主腳架彈簧組", "status": "pending", "deadline": "", "followup": "Cloud", "note": "內外彈簧設計不良無法鉤上。CLOUD"}, {"refNo": "10-4-1", "id": "10-4-1", "name": "主腳架彈簧-外", "status": "pending", "deadline": "", "followup": "Cloud", "note": "內外彈簧設計不良無法鉤上。CLOUD"}, {"refNo": "10-4-2", "id": "10-4-2", "name": "主腳架彈簧-內", "status": "pending", "deadline": "", "followup": "Cloud", "note": "內外彈簧設計不良無法鉤上。CLOUD"}, {"refNo": "10-5", "id": "10-5", "name": "六角台階螺栓 M10x22", "status": "pending", "deadline": "", "followup": "Cloud", "note": "請改品名規格易與10-6混淆誤用。CLOUD"}, {"refNo": "10-6", "id": "10-6", "name": "內六角台階螺栓 M10x22", "status": "pending", "deadline": "", "followup": "Cloud", "note": "請改品名規格易與10-6混淆誤用。CLOUD"}, {"refNo": "10-7", "id": "10-7", "name": "六角法蘭螺栓 M6x12", "status": "pending", "deadline": "", "followup": "Cloud", "note": "請增加強度要求級數與表面處理訊息。CLOUD"}, {"refNo": "10-8", "id": "10-8", "name": "六角法蘭螺帽 M10", "status": "pending", "deadline": "", "followup": "Cloud", "note": "表面處理訊息。CLOUD"}, {"refNo": "11", "id": "11", "name": "電池模組", "status": "pending", "deadline": "", "followup": "阿澤、Kris、Cloud", "note": "階次與3D階異常請修正此BOM。電池艙類與結構強度和組裝需求需通盤考慮"}, {"refNo": "11-1", "id": "11-1", "name": "電池艙", "status": "pending", "deadline": "", "followup": "阿澤、星元、Kris、Cloud", "note": "與3D階次對不符，應為18-5。電池艙類與結構強度和組裝需求需通盤考慮"}, {"refNo": "11-2", "id": "11-2", "name": "電池艙飾蓋-右", "status": "pending", "deadline": "", "followup": "取消", "note": "與3D階次對不符。確認消沒-以後側貨架側板為標準版外觀"}, {"refNo": "11-3", "id": "11-3", "name": "電池艙飾蓋-左", "status": "pending", "deadline": "", "followup": "取消", "note": "與3D階次對不符。確認消沒-以後側貨架側板為標準版外觀"}, {"refNo": "11-4", "id": "11-4", "name": "電池艙蓋", "status": "pending", "deadline": "", "followup": "姝涵", "note": "與3D階次對不符。以新修正需求考量重新架BOM 姝函"}, {"refNo": "11-7", "id": "11-7", "name": "電池公端刀閘蓋板 (拓邦)", "status": "pending", "deadline": "", "followup": "姝涵", "note": "3D未見所有13項品名無法辨識。以新修正需求考量重新架BOM 姝函"}, {"refNo": "11-8", "id": "11-8", "name": "電池公端刀閘蓋板 (新普)", "status": "pending", "deadline": "", "followup": "姝涵", "note": "3D未見所有13項品名無法辨識。以新修正需求考量重新架BOM 姝函"}, {"refNo": "11-9", "id": "11-9", "name": "黃銅套筒嵌入塊 M6x6", "status": "pending", "deadline": "", "followup": "姝涵", "note": "3D未見所有13項品名無法辨識。以新修正需求考量重新架BOM 姝函"}, {"refNo": "11-13", "id": "11-13", "name": "六角法蘭螺栓 M6x12", "status": "pending", "deadline": "", "followup": "姝涵", "note": "3D未見所有13項品名無法辨識。以新修正需求考量重新架BOM 姝函"}, {"refNo": "11-16", "id": "11-16", "name": "座墊膠條", "status": "pending", "deadline": "TW>CH 樣品", "followup": "Cloud", "note": "膠條優化CLOUD，量產品供應商樣品確認。膠條優化CLOUD，量產品供應商樣品確認"}, {"refNo": "11-18", "id": "11-18", "name": "15Ah電池公端刀閘接頭組", "status": "pending", "deadline": "", "followup": "姝涵", "note": "請表明廠商品名規格型號線長。以新修正需求考量重新架BOM 姝函"}, {"refNo": "11-10", "id": "11-10", "name": "15Ah電池公端刀閘", "status": "pending", "deadline": "", "followup": "姝涵", "note": "3D未見所有13項品名無法辨識。以新修正需求考量重新架BOM 姝函"}, {"refNo": "11-18-1", "id": "11-18-1", "name": "15Ah電池公端刀閘線材", "status": "pending", "deadline": "", "followup": "姝涵", "note": "請表明廠商品名規格型號線長。以新修正需求考量重新架BOM 姝函"}, {"refNo": "12", "id": "12", "name": "尾燈總成", "status": "pending", "deadline": "", "followup": "敬中、Cloud", "note": "主要問題走線位置不良。改孔尾燈孔位對應出線口修正CLOUD"}, {"refNo": "12-1", "id": "12-1", "name": "尾燈", "status": "pending", "deadline": "", "followup": "敬中、Cloud", "note": "出線位非正中心與飾蓋中心未預留走線匹配不良。改孔尾燈孔位對應出線口修正CLOUD"}, {"refNo": "12-2", "id": "12-2", "name": "尾燈飾蓋", "status": "pending", "deadline": "", "followup": "敬中、Cloud", "note": "出線位非正中心與飾蓋中心未預留走線匹配不良。改孔尾燈孔位對應出線口修正CLOUD"}, {"refNo": "13", "id": "13", "name": "車殼組", "status": "pending", "deadline": "", "followup": "阿澤、星元、敬中", "note": "組件分件與組裝手順異常，請全面頗析變更對應設計。。全部變更，依照PD新需求"}, {"refNo": "13-1", "id": "13-1", "name": "前擋泥板", "status": "pending", "deadline": "", "followup": "敬中", "note": "階次號數異常，設計鎖固方式異常。修改固定方式，加大螺絲提高容錯率"}, {"refNo": "13-3", "id": "13-3", "name": "下擾流板總成", "status": "pending", "deadline": "", "followup": "敬中", "note": "馬達線開口尺寸與走線位至改到中間。"}, {"refNo": "13-3-1", "id": "13-3-1", "name": "下擾流板", "status": "pending", "deadline": "", "followup": "敬中", "note": "分件異常與夾片螺母混合，請拆件。星元確認是否需要分件噴色"}, {"refNo": "13-3-2", "id": "13-3-2", "name": "夾片螺帽 M4", "status": "pending", "deadline": "", "followup": "馮課、敬中、姝涵", "note": "請鴻霖提供正式品名規格給台北更新訊息。馮建華提供與採購確認品名規格"}, {"refNo": "13-3-3", "id": "13-3-3", "name": "線套筒（索環・開放型）", "status": "pending", "deadline": "", "followup": "馮課、Cloud", "note": "3D查無此件，請RDPL確認為何物。改護線環，確認現品尺寸"}, {"refNo": "13-4", "id": "13-4", "name": "方向燈總成", "status": "pending", "deadline": "", "followup": "馮課、Cloud", "note": "組件未開孔，請定義與PD確認執行方式。後續使用治具定位鑽孔，新增治具需求，馮建華"}, {"refNo": "13-5", "id": "13-5", "name": "語音模組", "status": "pending", "deadline": "", "followup": "阿澤、Cloud", "note": "請EE確認供應商型號規格訊息給RDPL更新。語音模組孔位安裝困難，需進行修正"}, {"refNo": "13-7", "id": "13-7", "name": "下護板", "status": "pending", "deadline": "", "followup": "阿澤、星元、Cloud", "note": "下護板騎乘位為水平件，柱車後2度夾角會積水。CLOUD/夏維澤"}, {"refNo": "13-9", "id": "13-9", "name": "上飾蓋-A 總成", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、敬中", "note": "主要為前副車架/旅行架變更需求"}, {"refNo": "13-9-1", "id": "13-9-1", "name": "上飾蓋-A", "status": "pending", "deadline": "8月5日", "followup": "阿澤、星元、敬中", "note": "裝配手順異常，與前燈罩，車架，上飾蓋B階需干涉組裝。主要為前副車架/旅行架變更需求"}, {"refNo": "13-9-2", "id": "13-9-2", "name": "夾片螺帽 M4", "status": "pending", "deadline": "", "followup": "姝涵", "note": "請鴻霖提供正式品名規格給台北更新訊息。馮建華請鴻霖提供正式品名規格給台北更新訊息"}, {"refNo": "13-9-3", "id": "13-9-3", "name": "線套筒（索環・開放型）", "status": "pending", "deadline": "", "followup": "馮課、Cloud", "note": "3D查無此件，請RDPL確認為何物。姝涵改BOM相關定義CLOUD協助確認"}, {"refNo": "13-11", "id": "13-11", "name": "頭燈罩-中 總成", "status": "pending", "deadline": "", "followup": "阿澤、星元、敬中", "note": "待更新疊代 VICTOR"}, {"refNo": "13-11-1", "id": "13-11-1", "name": "頭燈罩-中", "status": "pending", "deadline": "", "followup": "阿澤、星元、敬中", "note": "羅斯與夾片螺母在檔案內未分件。待更新疊代 VICTOR"}, {"refNo": "13-11-2", "id": "13-11-2", "name": "夾片螺帽 M4", "status": "pending", "deadline": "", "followup": "阿澤、星元、敬中", "note": "請鴻霖提供正式品名規格給台北更新訊息。待更新疊代 VICTOR"}, {"refNo": "13-12", "id": "13-12", "name": "頭燈罩-右", "status": "pending", "deadline": "", "followup": "阿澤、星元、敬中", "note": "與前燈固定鎖耳機制設計配會無法有效控制安裝角度。待更新疊代 VICTOR"}, {"refNo": "13-13", "id": "13-13", "name": "頭燈罩-左", "status": "pending", "deadline": "", "followup": "阿澤、星元、敬中", "note": "與前燈固定鎖耳機制設計配會無法有效控制安裝角度。待更新疊代 VICTOR"}, {"refNo": "13-15", "id": "13-15", "name": "內擋板-A 總成", "status": "pending", "deadline": "", "followup": "敬中", "note": "待更新疊代 Cloud"}, {"refNo": "13-15-1", "id": "13-15-1", "name": "內擋板-A", "status": "pending", "deadline": "", "followup": "敬中", "note": "請分件，內部有無法辨識材質的組件。待更新疊代 Cloud"}, {"refNo": "13-15-2", "id": "13-15-2", "name": "門板橡膠", "status": "pending", "deadline": "", "followup": "敬中", "note": "待更新疊代 Cloud"}, {"refNo": "13-18", "id": "13-18", "name": "上飾蓋-B 總成", "status": "pending", "deadline": "", "followup": "敬中", "note": "待更新疊代 Cloud"}, {"refNo": "13-18-1", "id": "13-18-1", "name": "上飾蓋-B", "status": "pending", "deadline": "", "followup": "敬中", "note": "圖面干涉BOSS柱，螺絲未定易。待更新疊代 Cloud"}, {"refNo": "13-18-2", "id": "13-18-2", "name": "充電口", "status": "pending", "deadline": "", "followup": "阿澤、星元、Cloud", "note": "充電口需更換位置角度"}, {"refNo": "13-21", "id": "13-21", "name": "鑰匙座橡膠件", "status": "pending", "deadline": "8月5日", "followup": "敬中", "note": "3D查無此件，階次號錯誤。PD需求硬式結合，造型提案VICTOR"}, {"refNo": "13-22", "id": "13-22", "name": "內擋板-B 總成", "status": "pending", "deadline": "", "followup": "敬中", "note": "3D查無此件，階次號錯誤。待更新疊代 Cloud"}, {"refNo": "13-22-1", "id": "13-22-1", "name": "內擋板-B", "status": "pending", "deadline": "", "followup": "敬中", "note": "待更新疊代 Cloud"}, {"refNo": "13-22-2", "id": "13-22-2", "name": "門板橡膠", "status": "pending", "deadline": "", "followup": "敬中", "note": "待更新疊代 Cloud"}, {"refNo": "13-25", "id": "13-25", "name": "內擋板-C 總成", "status": "pending", "deadline": "", "followup": "Cloud、敬中", "note": "待更新疊代 Cloud"}, {"refNo": "13-25-1", "id": "13-25-1", "name": "內擋板-C", "status": "pending", "deadline": "", "followup": "Cloud、敬中", "note": "3D查無此件，階次號錯誤。待更新疊代 Cloud"}, {"refNo": "13-25-2", "id": "13-25-2", "name": "門板橡膠柱", "status": "pending", "deadline": "", "followup": "Cloud、敬中", "note": "3D查無此件。待更新疊代 Cloud"}, {"refNo": "13-26", "id": "13-26", "name": "車體護蓋-右 總成", "status": "pending", "deadline": "", "followup": "Cloud、敬中", "note": "待更新疊代 Cloud"}, {"refNo": "13-26-1", "id": "13-26-1", "name": "車體護蓋-右", "status": "pending", "deadline": "", "followup": "Cloud、敬中", "note": "待更新疊代 Cloud"}, {"refNo": "13-26-2", "id": "13-26-2", "name": "門板橡膠柱", "status": "pending", "deadline": "", "followup": "Cloud、敬中", "note": "待更新疊代 Cloud"}, {"refNo": "13-27", "id": "13-27", "name": "車體護蓋-左 總成", "status": "pending", "deadline": "", "followup": "Cloud、敬中", "note": "待更新疊代 Cloud"}, {"refNo": "13-27-1", "id": "13-27-1", "name": "車體護蓋-左", "status": "pending", "deadline": "", "followup": "Cloud、敬中", "note": "待更新疊代 Cloud"}, {"refNo": "13-27-2", "id": "13-27-2", "name": "門板橡膠柱", "status": "pending", "deadline": "", "followup": "Cloud、敬中", "note": "待更新疊代 Cloud"}, {"refNo": "14", "id": "14", "name": "頭燈總成", "status": "pending", "deadline": "", "followup": "阿澤、Phyllis", "note": "請與PD確認頭燈型態。首選科光，近燈，遠燈，日行燈是否認證為近燈"}, {"refNo": "14-1", "id": "14-1", "name": "頭燈", "status": "pending", "deadline": "", "followup": "阿澤、Phyllis", "note": "請與PD確認頭燈型態。頭燈固定支架寬度與車架預留間隙需重新配合審視"}, {"refNo": "14-2", "id": "14-2", "name": "頭燈電路板", "status": "pending", "deadline": "", "followup": "阿澤、Phyllis、Fish", "note": "請與PD確認頭燈型態。待VICTOR遠近日行燈機制與設計後更新圖面"}, {"refNo": "14-3", "id": "14-3", "name": "頭燈中繼線線材", "status": "pending", "deadline": "", "followup": "Ryan、Fish", "note": "前燈線材走位與上飾蓋板A相對位置導致組裝困難。待更新疊代 RYAN/FISH"}, {"refNo": "15", "id": "15", "name": "座墊本體", "status": "pending", "deadline": "", "followup": "星元", "note": "座墊階次階次與3D命名全部異常，請重新分件。椅墊開角過大，前管掛鉤會破壞椅墊表面"}, {"refNo": "15-1", "id": "15-1", "name": "座墊底板-A 總成", "status": "pending", "deadline": "", "followup": "敬中", "note": "待更新疊代 Cloud"}, {"refNo": "15-1-1", "id": "15-1-1", "name": "座墊底板-A", "status": "pending", "deadline": "", "followup": "敬中", "note": "待更新疊代 Cloud"}, {"refNo": "15-1-2", "id": "15-1-2", "name": "座墊絞鍊", "status": "pending", "deadline": "TW>CH 樣品", "followup": "Cloud", "note": "3D查無此件，請重新審查檔案。待更新疊代 Cloud"}, {"refNo": "15-1-3", "id": "15-1-3", "name": "座墊扣件", "status": "pending", "deadline": "", "followup": "Cloud", "note": "待更新疊代 Cloud"}, {"refNo": "15-1-6", "id": "15-1-6", "name": "六角法蘭螺帽 M6", "status": "pending", "deadline": "", "followup": "Cloud", "note": "待更新疊代 Cloud"}, {"refNo": "15-1-7", "id": "15-1-7", "name": "座墊止滑橡膠墊", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "確認生產執行方式，馮建華/Cloud圖面更新"}, {"refNo": "15-1-8", "id": "15-1-8", "name": "座墊橡膠", "status": "pending", "deadline": "", "followup": "Cloud", "note": "待更新疊代 Cloud"}, {"refNo": "15-1-9", "id": "15-1-9", "name": "Airtag", "status": "pending", "deadline": "", "followup": "Cloud", "note": "待更新疊代 Cloud"}, {"refNo": "15-1-10", "id": "15-1-10", "name": "Airtag 蓋子", "status": "pending", "deadline": "", "followup": "Cloud", "note": "3D查無此件，請註明材質顏色表面處理。待更新疊代 Cloud"}, {"refNo": "15-2", "id": "15-2", "name": "座墊底板-B", "status": "pending", "deadline": "", "followup": "Cloud、敬中", "note": "座墊底板與電池固定件相對關係異常。待更新疊代 Cloud"}, {"refNo": "15-3", "id": "15-3", "name": "座墊泡棉", "status": "pending", "deadline": "", "followup": "Cloud、敬中", "note": "待更新疊代 Cloud"}, {"refNo": "17-3", "id": "17-3", "name": "M4 夾片螺帽", "status": "pending", "deadline": "", "followup": "姝涵", "note": ""}, {"refNo": "24", "id": "32", "name": "插鞘式電源線結束帶", "status": "pending", "deadline": "", "followup": "馮課、姝涵", "note": "有方向性，待確認使用時機。馮建華提供規格，採購跟進"}, {"refNo": "25", "id": "33", "name": "紮線帶-尼龍", "status": "pending", "deadline": "", "followup": "姝涵", "note": "不確定何處使用，姝函請更新"}, {"refNo": "11-19", "id": "18", "name": "15Ah主電池", "status": "pending", "deadline": "", "followup": "Kris、Cloud、阿澤", "note": "請於規格處加入規格。PD需求新增６０Ｖ版本"}, {"refNo": "11-20", "id": "18-1", "name": "電池韌體", "status": "pending", "deadline": "", "followup": "Fish", "note": "無，待更新"}, {"refNo": "11-21", "id": "19", "name": "電池匯流排", "status": "pending", "deadline": "", "followup": "BLUE、David、阿澤", "note": "安裝異常無法正常裝配。低壓灌注，線材選擇"}, {"refNo": "11-22", "id": "20", "name": "充放電模組 (全漢)", "status": "pending", "deadline": "", "followup": "BLUE、David、阿澤", "note": "安裝異常無法正常裝配。無法正常安裝，定位，需確認好固定機制"}, {"refNo": "11-23", "id": "21", "name": "電池充電器 TYPE-C", "status": "pending", "deadline": "", "followup": "Kris", "note": "RP2未見樣品，暫無"}, {"refNo": "", "id": "22", "name": "ＰＤ／ＤＣ充電線母座", "status": "pending", "deadline": "", "followup": "Kris、Cloud", "note": "正接反接無法通訊。KRIS 提供更新後的樣品測試驗證"}, {"refNo": "1-8", "id": "23", "name": "右側後視鏡", "status": "pending", "deadline": "", "followup": "馮課、姝涵、阿澤", "note": "無/RP2首樣未裝。需提出低成本解決方案"}, {"refNo": "1-9", "id": "24", "name": "左側後視鏡", "status": "pending", "deadline": "", "followup": "馮課、姝涵、阿澤", "note": "需提出低成本解決方案"}, {"refNo": "18", "id": "25", "name": "自有設計側掛包", "status": "pending", "deadline": "", "followup": "紹甫、阿澤、姝涵", "note": "軟件卦包類可免3D，但須提供圖紙。暫無"}, {"refNo": "19", "id": "26", "name": "帶水壺側掛包", "status": "pending", "deadline": "", "followup": "紹甫、阿澤、姝涵", "note": "軟件卦包類可免3D，但須提供圖紙。暫無"}, {"refNo": "20", "id": "27", "name": "機甲風側掛包", "status": "pending", "deadline": "", "followup": "紹甫、阿澤、姝涵", "note": "軟件卦包類可免3D，但須提供圖紙。暫無"}, {"refNo": "21", "id": "28", "name": "電壓絞紋網包", "status": "pending", "deadline": "", "followup": "紹甫、阿澤、姝涵", "note": "軟件卦包類可免3D，但須提供圖紙。暫無"}, {"refNo": "22", "id": "29", "name": "前後貨架/ 載貨平台", "status": "pending", "deadline": "", "followup": "紹甫、阿澤、姝涵", "note": "無3D查無此件，請重新審查檔案。前後後貨架難安裝，後貨架遮蔽尾燈，需修改"}, {"refNo": "23", "id": "30", "name": "模組戰術掛版", "status": "pending", "deadline": "", "followup": "紹甫、阿澤、姝涵", "note": "無3D查無此件，請重新審查檔案。側卦板改為標準件"}, {"refNo": "24", "id": "31", "name": "外掛拖車", "status": "pending", "deadline": "", "followup": "紹甫、阿澤、Cloud、姝涵", "note": "無3D查無此件，請重新審查檔案。暫無優良卦置對策"}];
+
+// ===== 後端設定：貼上你部署好的 Google Apps Script 網址 =====
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxQGhb2nKMal8vj1_L6YYYBJiXR5rkvOaHdf-PlMcR8hWV8s4Yh6hrXBOAtkpHmsNir/exec";
+
+const storage = {
+  async get(key){
+    const res = await fetch(`${APPS_SCRIPT_URL}?key=${encodeURIComponent(key)}`);
+    if(!res.ok) throw new Error('讀取失敗：' + res.status);
+    const data = await res.json();
+    if(data && data.value !== undefined && data.value !== null){
+      return { key, value: data.value };
+    }
+    return null;
+  },
+  async set(key, value){
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 用text/plain避免CORS預檢請求
+      body: JSON.stringify({ key, value })
+    });
+    if(!res.ok) throw new Error('儲存失敗：' + res.status);
+    return { key, value };
+  }
+};
+
+function buildInitialTasks(){
+  const tasks = [];
+  INITIAL_PARTS.forEach(part=>{
+    const owners = getActionOwners(part);
+    owners.forEach(owner=>{
+      if(owner === '取消') return; // 已取消的項目不追蹤
+      tasks.push({
+        id: `${part.id}::${owner}`,
+        partId: part.id,
+        name: part.name,
+        status: part.status,
+        deadline: part.deadline,
+        followup: owner,
+        note: part.note
+      });
+    });
+  });
+  return tasks;
+}
+
+let DATA = [];
+let HISTORY = [];
+const STORAGE_KEY = 'tracker-current-v7';
+const HISTORY_KEY = 'tracker-history-v7';
+
+async function initData(){
+  const loadingEl = document.getElementById('loadingScreen');
+  const seedData = buildInitialTasks();
+  try{
+    const current = await storage.get(STORAGE_KEY);
+    DATA = current ? JSON.parse(current.value) : JSON.parse(JSON.stringify(seedData));
+    if(!current){
+      await storage.set(STORAGE_KEY, JSON.stringify(DATA));
+    }
+  }catch(err){
+    console.error('讀取共用資料失敗，改用預設資料', err);
+    DATA = JSON.parse(JSON.stringify(seedData));
+  }
+  try{
+    const hist = await storage.get(HISTORY_KEY);
+    HISTORY = hist ? JSON.parse(hist.value) : [];
+  }catch(err){
+    HISTORY = [];
+  }
+  loadingEl.style.display = 'none';
+  const urlOwner = new URLSearchParams(window.location.search).get('owner');
+  if(urlOwner){
+    activeOwner = urlOwner;
+    currentView = 'owner';
+  }
+  renderAll();
+}
+
+async function persistData(){
+  try{
+    await storage.set(STORAGE_KEY, JSON.stringify(DATA));
+  }catch(err){
+    console.error('儲存資料失敗', err);
+    showToast('⚠️ 儲存到雲端失敗，請檢查網路後再試一次');
+  }
+}
+
+async function persistHistory(){
+  try{
+    await storage.set(HISTORY_KEY, JSON.stringify(HISTORY));
+  }catch(err){
+    console.error('儲存歷史紀錄失敗', err);
+  }
+}
+
+function statusLabel(s){
+  return {ok:"已確認", pending:"待確認", inprogress:"進行中", urgent:"急件"}[s] || "未定";
+}
+
+let currentFilter = "all";
+let currentView = "owner";
+let activeOwner = null;
+let tvMode = false;
+const PRIORITY_OWNERS = ["Cloud", "姝涵", "敬中", "星元"];
+
+function filteredData(){
+  return DATA.filter(d => currentFilter === "all" || d.status === currentFilter);
+}
+
+function getActionOwners(d){
+  if(!d.followup || !d.followup.trim()) return ["未指派"];
+  const names = [...new Set(
+    d.followup.split(/[、,，]/).map(s=>s.trim()).filter(Boolean)
+  )];
+  return names.length ? names : ["未指派"];
+}
+
+function renderLoadBars(){
+  const owners = {};
+  DATA.forEach(d=>{
+    getActionOwners(d).forEach(o=>{
+      if(!owners[o]) owners[o] = {ok:0,pending:0,urgent:0,inprogress:0,total:0,items:[]};
+      owners[o][d.status] = (owners[o][d.status]||0)+1;
+      owners[o].total++;
+      owners[o].items.push(d);
+    });
+  });
+  const sorted = Object.entries(owners).sort((a,b)=>b[1].total-a[1].total);
+  const el = document.getElementById('loadBars');
+  el.innerHTML = sorted.map(([name, c])=>{
+    const pctOk = c.ok/c.total*100, pctPend = c.pending/c.total*100, pctUrg = c.urgent/c.total*100, pctProg = c.inprogress/c.total*100;
+    const isActive = activeOwner === name ? "active" : "";
+    const inprogItems = c.items.filter(i=>i.status==='inprogress');
+    const inprogNote = inprogItems.length
+      ? `<div class="load-inprogress-note">🔵 進行中 ${Math.round(pctProg)}%：${inprogItems.map(i=>`${i.partId}．${i.name}`).join('、')}</div>`
+      : '';
+    return `<div class="load-row-wrap">
+      <div class="load-row">
+        <div class="load-name ${isActive}" data-owner="${name}">${name}</div>
+        <div class="load-bar">
+          <div class="seg urgent" style="width:${pctUrg}%"></div>
+          <div class="seg pending" style="width:${pctPend}%"></div>
+          <div class="seg inprogress" style="width:${pctProg}%"></div>
+          <div class="seg ok" style="width:${pctOk}%"></div>
+        </div>
+        <div class="load-count">${c.total} 項</div>
+      </div>
+      ${inprogNote}
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.load-name').forEach(n=>{
+    n.onclick = ()=>{
+      setActiveOwner(activeOwner === n.dataset.owner ? null : n.dataset.owner);
+    };
+  });
+}
+
+function setActiveOwner(name){
+  activeOwner = name || null;
+  const url = new URL(window.location.href);
+  if(activeOwner){
+    url.searchParams.set('owner', activeOwner);
+  } else {
+    url.searchParams.delete('owner');
+  }
+  window.history.replaceState({}, '', url);
+  const sel = document.getElementById('personalSelect');
+  if(sel) sel.value = activeOwner || "";
+  if(currentView !== 'owner'){
+    currentView = 'owner';
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelector('.tab[data-view="owner"]').classList.add('active');
+    document.getElementById('ownerView').style.display = 'block';
+    document.getElementById('bomView').style.display = 'none';
+    document.getElementById('rawView').style.display = 'none';
+  }
+  renderAll();
+}
+
+function populatePersonalSelect(){
+  const sel = document.getElementById('personalSelect');
+  if(!sel) return;
+  const names = [...new Set(DATA.flatMap(d => getActionOwners(d)))].sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+  const current = sel.value;
+  sel.innerHTML = `<option value="">— 顯示全部 —</option>` +
+    names.map(n => `<option value="${n}">${n}</option>`).join('');
+  sel.value = activeOwner || current || "";
+}
+
+function renderOwnerView(){
+  const data = filteredData().filter(d => !activeOwner || getActionOwners(d).includes(activeOwner));
+  const owners = {};
+  data.forEach(d=>{
+    getActionOwners(d).forEach(o=>{
+      if(!owners[o]) owners[o] = [];
+      owners[o].push(d);
+    });
+  });
+  const sorted = Object.entries(owners).sort((a,b)=>b[1].length-a[1].length);
+  const el = document.getElementById('ownerView');
+  if(sorted.length===0){
+    el.innerHTML = `<div class="empty-note">目前篩選條件下沒有項目</div>`;
+    return;
+  }
+  el.innerHTML = sorted.map(([name, items])=>{
+    const urgentCount = items.filter(i=>i.status==='urgent').length;
+    const pendingCount = items.filter(i=>i.status==='pending').length;
+    return `
+    <div class="owner-block">
+      <div class="owner-head">
+        <div class="name">${name}</div>
+        <div class="meta">共 ${items.length} 項　·　急件 ${urgentCount}　·　待確認 ${pendingCount}</div>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="width:70px">項次</th>
+          <th>品名</th>
+          <th style="width:100px">狀態</th>
+          <th style="width:90px">期限</th>
+          <th style="width:110px">負責人</th>
+          <th>備註</th>
+        </tr></thead>
+        <tbody>
+          ${items.map(i=>`
+            <tr>
+              <td class="id-cell">${i.partId}</td>
+              <td>${i.name}</td>
+              <td>
+                <select class="status-select ${i.status}" data-id="${i.id}">
+                  <option value="ok" ${i.status==='ok'?'selected':''}>已確認</option>
+                  <option value="inprogress" ${i.status==='inprogress'?'selected':''}>進行中</option>
+                  <option value="pending" ${i.status==='pending'?'selected':''}>待確認</option>
+                  <option value="urgent" ${i.status==='urgent'?'selected':''}>急件</option>
+                </select>
+              </td>
+              <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
+              <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
+              <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }).join('');
+}
+
+function renderBomView(){
+  const data = filteredData();
+  const order = [];
+  const groups = {};
+  data.forEach(d=>{
+    if(!groups[d.partId]){ groups[d.partId] = []; order.push(d.partId); }
+    groups[d.partId].push(d);
+  });
+  const el = document.getElementById('bomView');
+  if(order.length === 0){
+    el.innerHTML = `<div class="empty-note">目前篩選條件下沒有項目</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="bom-panel">` + order.map(pid=>{
+    const tasks = groups[pid];
+    const depth = (pid.match(/-/g) || []).length;
+    const name = tasks[0].name;
+    const indent = 12 + depth * 22;
+    const badges = tasks.map(t=>`<span class="bom-badge ${t.status}">${t.followup}${t.status==='inprogress' ? ' 🔵':''}</span>`).join('');
+    return `<div class="bom-row depth-${Math.min(depth,2)}" style="padding-left:${indent}px">
+      <span class="bom-id">${pid}</span>
+      <span class="bom-name">${name}</span>
+      <span class="bom-badges">${badges}</span>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+function renderRawView(){
+  const data = filteredData();
+  const el = document.getElementById('rawView');
+  el.innerHTML = `
+    <table class="raw-table">
+      <thead><tr>
+        <th style="width:70px">項次</th>
+        <th>品名</th>
+        <th style="width:100px">狀態</th>
+        <th style="width:90px">期限</th>
+        <th style="width:110px">負責人</th>
+        <th>備註</th>
+      </tr></thead>
+      <tbody>
+        ${data.map(i=>`
+          <tr>
+            <td class="id-cell">${i.partId}</td>
+            <td>${i.name}</td>
+            <td>
+              <select class="status-select ${i.status}" data-id="${i.id}">
+                <option value="ok" ${i.status==='ok'?'selected':''}>已確認</option>
+                <option value="inprogress" ${i.status==='inprogress'?'selected':''}>進行中</option>
+                <option value="pending" ${i.status==='pending'?'selected':''}>待確認</option>
+                <option value="urgent" ${i.status==='urgent'?'selected':''}>急件</option>
+              </select>
+            </td>
+            <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
+            <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
+            <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function fieldLabel(f){
+  return {followup:'負責人', note:'備註', deadline:'期限', status:'狀態'}[f] || f;
+}
+
+async function handleFieldChange(id, field, oldRaw, newRaw){
+  if(oldRaw === newRaw) return;
+  const entry = DATA.find(d=>d.id===id);
+  if(!entry) return;
+  entry[field] = newRaw;
+  const displayOld = field === 'status' ? statusLabel(oldRaw) : (oldRaw || '(空白)');
+  const displayNew = field === 'status' ? statusLabel(newRaw) : (newRaw || '(空白)');
+  HISTORY.unshift({
+    id, partId: entry.partId, name: entry.name, assignee: entry.followup, field,
+    oldVal: displayOld, newVal: displayNew,
+    time: new Date().toLocaleString('zh-TW', {hour12:false})
+  });
+  showToast('儲存中…');
+  await Promise.all([persistData(), persistHistory()]);
+  renderHistoryList();
+  if(field === 'status' || field === 'followup'){
+    // 狀態或後續Action變動會影響分組/工作量條/儀表板，整體重繪
+    renderAll();
+  } else {
+    syncOtherView(id, field, newRaw);
+  }
+  showToast(`已更新 ${id} 的${fieldLabel(field)}，已同步到共用雲端`);
+}
+
+function attachEditHandlers(){
+  document.querySelectorAll('.editable').forEach(cell=>{
+    cell.addEventListener('blur', (e)=>{
+      const id = e.target.dataset.id;
+      const field = e.target.dataset.field;
+      const entry = DATA.find(d=>d.id===id);
+      if(!entry) return;
+      const oldVal = entry[field] || "";
+      const newVal = e.target.textContent.trim();
+      handleFieldChange(id, field, oldVal, newVal);
+    });
+    cell.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+    });
+  });
+  document.querySelectorAll('.status-select').forEach(sel=>{
+    sel.addEventListener('change', (e)=>{
+      const id = e.target.dataset.id;
+      const entry = DATA.find(d=>d.id===id);
+      if(!entry) return;
+      const oldVal = entry.status;
+      const newVal = e.target.value;
+      handleFieldChange(id, 'status', oldVal, newVal);
+    });
+  });
+}
+
+function syncOtherView(id, field, val){
+  document.querySelectorAll(`.editable[data-id="${id}"][data-field="${field}"]`).forEach(el=>{
+    if(document.activeElement !== el) el.textContent = val;
+  });
+}
+
+let toastTimer;
+function showToast(msg){
+  let t = document.querySelector('.toast');
+  if(!t){
+    t = document.createElement('div');
+    t.className = 'toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+function exportCSV(){
+  const headers = ["項次","品名","狀態","期限","負責人","備註"];
+  const rows = DATA.map(d=>[
+    d.partId, d.name, statusLabel(d.status), d.deadline||"", d.followup||"", d.note||""
+  ]);
+  const csv = [headers, ...rows].map(r =>
+    r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')
+  ).join('\n');
+  const blob = new Blob(["\uFEFF"+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'owner_tracker_export.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('已匯出 CSV，請確認下載檔案');
+}
+
+document.getElementById('exportBtn').onclick = exportCSV;
+
+document.getElementById('tvModeBtn').onclick = ()=>{
+  tvMode = !tvMode;
+  document.body.classList.toggle('tv-mode', tvMode);
+  document.getElementById('tvModeBtn').textContent = tvMode ? '↩ 返回一般模式' : '📺 電視模式';
+  renderAll();
+};
+
+function renderHistoryList(){
+  const el = document.getElementById('historyList');
+  if(HISTORY.length === 0){
+    el.innerHTML = `<div class="history-empty">目前還沒有任何編輯紀錄</div>`;
+    return;
+  }
+  el.innerHTML = HISTORY.map(h => `
+    <div class="history-item">
+      <div class="h-top"><span>${h.partId} · ${h.name}（負責人：${h.assignee||'—'}）</span><span>${h.time}</span></div>
+      <div class="h-change">
+        ${fieldLabel(h.field)}：
+        <span class="h-old">${h.oldVal || '(空白)'}</span> →
+        <span class="h-new">${h.newVal || '(空白)'}</span>
+      </div>
+    </div>`).join('');
+}
+
+document.getElementById('historyBtn').onclick = ()=>{
+  renderHistoryList();
+  document.getElementById('historyOverlay').classList.add('show');
+};
+document.getElementById('historyClose').onclick = ()=>{
+  document.getElementById('historyOverlay').classList.remove('show');
+};
+document.getElementById('historyOverlay').onclick = (e)=>{
+  if(e.target.id === 'historyOverlay') e.target.classList.remove('show');
+};
+
+function renderPersonalPanel(){
+  const el = document.getElementById('personalPanel');
+  if(!activeOwner){
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  el.style.display = 'block';
+  const items = DATA.filter(d => getActionOwners(d).includes(activeOwner));
+  const total = items.length;
+  const done = items.filter(d => d.status === 'ok').length;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  const inprogItems = items.filter(d => d.status === 'inprogress');
+  const inprogText = inprogItems.length
+    ? inprogItems.map(d => `${d.partId}．${d.name}`).join('、')
+    : '目前沒有進行中的項目';
+  el.innerHTML = `
+    <div class="personal-panel-title">${activeOwner} 的進度</div>
+    <div class="inprogress-highlight">🔵 進行中：${inprogText}</div>
+    <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <div class="progress-text">已完成 ${done} / ${total} 項　·　完成率 ${pct}%</div>
+  `;
+}
+
+function renderDashboard(){
+  const owners = {};
+  DATA.forEach(d=>{
+    getActionOwners(d).forEach(o=>{
+      if(!owners[o]) owners[o] = [];
+      owners[o].push(d);
+    });
+  });
+  let sorted = Object.entries(owners);
+  if(tvMode){
+    sorted.sort((a,b)=>{
+      const ap = PRIORITY_OWNERS.indexOf(a[0]);
+      const bp = PRIORITY_OWNERS.indexOf(b[0]);
+      if(ap !== -1 && bp !== -1) return ap - bp;
+      if(ap !== -1) return -1;
+      if(bp !== -1) return 1;
+      return b[1].length - a[1].length;
+    });
+  } else {
+    sorted.sort((a,b)=>b[1].length-a[1].length);
+  }
+  const el = document.getElementById('dashboardGrid');
+  el.innerHTML = sorted.map(([name, items])=>{
+    const total = items.length;
+    const done = items.filter(i=>i.status==='ok').length;
+    const pct = total ? Math.round(done/total*100) : 0;
+    const inprog = items.filter(i=>i.status==='inprogress');
+    const inprogHtml = inprog.length
+      ? `🔵 進行中：${inprog.map(i=>`${i.partId}．${i.name}`).join('、')}`
+      : `目前沒有進行中的項目`;
+    const isFeatured = tvMode && PRIORITY_OWNERS.includes(name);
+    const isMinor = tvMode && !isFeatured;
+    const sizeClass = isFeatured ? 'featured' : (isMinor ? 'minor' : '');
+    return `<div class="dash-card ${sizeClass}" data-owner="${name}">
+      <div class="dash-card-head">
+        <div class="dash-card-name">${name}</div>
+        <div class="dash-card-pct">${pct}%</div>
+      </div>
+      <div class="dash-progress-track"><div class="dash-progress-fill" style="width:${pct}%"></div></div>
+      <div class="dash-inprogress ${inprog.length ? '' : 'empty'}">${inprogHtml}</div>
+      <div class="dash-meta">已完成 ${done} / ${total} 項</div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.dash-card').forEach(c=>{
+    c.onclick = ()=> setActiveOwner(c.dataset.owner);
+  });
+}
+
+function renderAll(){
+  populatePersonalSelect();
+  renderDashboard();
+  renderLoadBars();
+  renderPersonalPanel();
+  renderOwnerView();
+  renderBomView();
+  renderRawView();
+  attachEditHandlers();
+}
+
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick = ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    currentView = t.dataset.view;
+    document.getElementById('ownerView').style.display = currentView==='owner' ? 'block':'none';
+    document.getElementById('bomView').style.display = currentView==='bom' ? 'block':'none';
+    document.getElementById('rawView').style.display = currentView==='raw' ? 'block':'none';
+  };
+});
+
+document.getElementById('statusFilter').onchange = (e)=>{
+  currentFilter = e.target.value;
+  renderAll();
+};
+
+document.getElementById('personalSelect').onchange = (e)=>{
+  setActiveOwner(e.target.value || null);
+};
+
+initData();
+</script>
+</body>
+</html>
