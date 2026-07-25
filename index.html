@@ -706,7 +706,7 @@ function renderOwnerView(){
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
               <td class="followup editable progress-cell" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
-              <td>${i.partId.startsWith('新增') ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
+              <td>${(i.partId.startsWith('新增') || i.partId.startsWith('自訂-')) ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -775,7 +775,7 @@ function renderRawView(){
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
             <td class="followup editable progress-cell" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
-            <td>${i.partId.startsWith('新增') ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
+            <td>${(i.partId.startsWith('新增') || i.partId.startsWith('自訂-')) ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
