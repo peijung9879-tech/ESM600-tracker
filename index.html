@@ -168,32 +168,49 @@
   .history-item .h-new{ color:var(--teal); font-weight:600; }
   .history-empty{ padding:30px 0; text-align:center; color:var(--ink-soft); font-size:13px; }
 
-  /* --- timeline view --- */
-  .timeline-section-title{
-    font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
-    padding:14px 0 10px; color:var(--ink-soft);
+  /* --- timeline page (horizontal, time-axis) --- */
+  .timeline-legend{ display:flex; gap:16px; margin-bottom:14px; font-size:11px; color:var(--ink-soft); }
+  .timeline-legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .timeline-page{ overflow-x:auto; padding-bottom:12px; }
+  .timeline-axis-track{
+    display:flex; gap:0; position:relative; padding-top:16px; min-width:max-content;
   }
-  .timeline-section-title:first-child{ padding-top:4px; }
-  .timeline-track{
-    position:relative; margin-left:6px; padding-left:22px; border-left:2px solid var(--line);
+  .timeline-axis-track::before{
+    content:''; position:absolute; top:15px; left:0; right:0; height:2px; background:var(--line);
   }
-  .timeline-track:last-of-type{ padding-bottom:2px; }
-  .timeline-node{ position:relative; padding-bottom:18px; }
-  .timeline-node:last-child{ padding-bottom:2px; }
-  .timeline-dot{
-    position:absolute; left:-29px; top:3px; width:12px; height:12px; border-radius:50%;
-    background:var(--ink-soft); border:3px solid var(--panel); box-shadow:0 0 0 1px var(--line);
+  .timeline-col{
+    position:relative; width:190px; flex:0 0 190px; padding:0 14px; border-right:1px dashed var(--line);
   }
-  .timeline-node.overdue .timeline-dot{ background:var(--red); box-shadow:0 0 0 1px var(--red); }
-  .timeline-node.soon .timeline-dot{ background:var(--amber); box-shadow:0 0 0 1px var(--amber); }
-  .timeline-node.later .timeline-dot{ background:var(--teal); box-shadow:0 0 0 1px var(--teal); }
-  .timeline-node-head{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
-  .timeline-node-name{ font-size:14px; font-weight:700; color:var(--ink); }
-  .timeline-node-date{ font-family:var(--mono); font-size:11.5px; font-weight:700; }
-  .timeline-node.overdue .timeline-node-date{ color:var(--red); }
-  .timeline-node.soon .timeline-node-date{ color:var(--amber); }
-  .timeline-node.later .timeline-node-date{ color:var(--teal); }
-  .timeline-node-meta{ font-size:12px; color:var(--ink-soft); margin-top:3px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .timeline-col:last-child{ border-right:none; }
+  .timeline-col-dot{
+    position:absolute; top:9px; left:50%; transform:translateX(-50%);
+    width:11px; height:11px; border-radius:50%; background:var(--ink-soft);
+    border:2px solid var(--panel); box-shadow:0 0 0 1px var(--line); z-index:1;
+  }
+  .timeline-col.overdue .timeline-col-dot{ background:var(--red); box-shadow:0 0 0 1px var(--red); }
+  .timeline-col.soon .timeline-col-dot{ background:var(--amber); box-shadow:0 0 0 1px var(--amber); }
+  .timeline-col.later .timeline-col-dot{ background:var(--teal); box-shadow:0 0 0 1px var(--teal); }
+  .timeline-col-date{
+    text-align:center; font-family:var(--mono); font-weight:700; font-size:13px; margin-top:24px;
+  }
+  .timeline-col.overdue .timeline-col-date{ color:var(--red); }
+  .timeline-col.soon .timeline-col-date{ color:var(--amber); }
+  .timeline-col.later .timeline-col-date{ color:var(--teal); }
+  .timeline-col-count{
+    text-align:center; font-size:10.5px; color:var(--ink-soft); margin-bottom:10px; font-family:var(--mono);
+  }
+  .timeline-item-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:9px 10px; margin-bottom:8px;
+  }
+  .timeline-item-name{ font-size:12.5px; font-weight:700; color:var(--ink); line-height:1.3; }
+  .timeline-item-part{ font-family:var(--mono); font-size:10px; color:var(--ink-soft); }
+  .timeline-item-meta{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; align-items:center; }
+  .timeline-more-btn{
+    font-size:11px; color:var(--teal); cursor:pointer; text-align:center; padding:5px 0;
+    background:var(--teal-soft); border-radius:6px; font-weight:600; margin-bottom:8px;
+  }
+  .timeline-more-btn:hover{ background:var(--teal); color:#fff; }
 
   .loading-screen{
     position:fixed; inset:0; background:var(--bg); display:flex; align-items:center;
@@ -399,6 +416,7 @@
       <div class="tab active" data-view="owner">依 Owner 檢視</div>
       <div class="tab" data-view="bom">BOM 階層檢視</div>
       <div class="tab" data-view="raw">依原始項次檢視</div>
+      <div class="tab" data-view="timeline">時間軸</div>
     </div>
     <div class="toolbar-right">
       <div class="filterbar">
@@ -421,7 +439,6 @@
       <button class="history-btn" id="historyBtn">📜 編輯歷史</button>
       <button class="save-btn" id="exportBtn">匯出目前資料 (CSV)</button>
       <button class="save-btn" id="tvModeBtn">📺 電視模式</button>
-      <button class="history-btn" id="timelineBtn">🗓 時間軸</button>
     </div>
   </div>
   <div class="edit-hint">💡 「品名」「狀態」「期限」「負責人」「備註」都可以直接在表格上編輯（狀態用下拉選單），改完會自動同步到共用雲端，任何人打開此頁都會看到最新內容，所有修改都會留在「編輯歷史」裡不會消失。想只看自己的清單，選上方「我是」，網址會記住你的選擇，下次直接用同一個連結就會自動只顯示你的項目。</div>
@@ -431,6 +448,7 @@
   <div id="ownerView"></div>
   <div id="bomView" style="display:none"></div>
   <div id="rawView" style="display:none"></div>
+  <div id="timelineView" style="display:none"></div>
 </div>
 
 <div class="history-overlay" id="historyOverlay">
@@ -440,16 +458,6 @@
       <button class="history-close" id="historyClose">×</button>
     </div>
     <div class="history-list" id="historyList"></div>
-  </div>
-</div>
-
-<div class="history-overlay" id="timelineOverlay">
-  <div class="history-modal" style="max-width:760px;">
-    <div class="history-modal-head">
-      <h2>時間軸檢視（依期限排序）</h2>
-      <button class="history-close" id="timelineClose">×</button>
-    </div>
-    <div class="history-list" id="timelineList"></div>
   </div>
 </div>
 
@@ -650,6 +658,7 @@ function setActiveOwner(name){
     document.getElementById('ownerView').style.display = 'block';
     document.getElementById('bomView').style.display = 'none';
     document.getElementById('rawView').style.display = 'none';
+    document.getElementById('timelineView').style.display = 'none';
   }
   renderAll();
 }
@@ -965,22 +974,22 @@ function parseDeadline(str){
   return d;
 }
 
-function groupTimelineByPart(list){
+function groupTimelineColumn(list){
   const map = {};
   const order = [];
-  list.forEach(x=>{
-    const pid = x.task.partId;
+  list.forEach(task=>{
+    const pid = task.partId;
     if(!map[pid]){
-      map[pid] = { partId: pid, name: x.task.name, date: x.date, deadlineText: x.task.deadline, entries: [] };
+      map[pid] = { partId: pid, name: task.name, entries: [] };
       order.push(pid);
     }
-    map[pid].entries.push({ followup: x.task.followup || '未指派', status: x.task.status });
+    map[pid].entries.push({ followup: task.followup || '未指派', status: task.status });
   });
   return order.map(pid => map[pid]);
 }
 
-function renderTimelineList(){
-  const el = document.getElementById('timelineList');
+function renderTimelinePage(){
+  const el = document.getElementById('timelineView');
   const now = new Date();
   now.setHours(0,0,0,0);
   const withDates = [];
@@ -988,61 +997,90 @@ function renderTimelineList(){
   DATA.forEach(d=>{
     const date = parseDeadline(d.deadline);
     if(date) withDates.push({ task: d, date });
-    else if(d.deadline) noDates.push({ task: d, date: null });
+    else if(d.deadline) noDates.push(d);
   });
-  withDates.sort((a,b)=>a.date - b.date);
-  const overdue = groupTimelineByPart(withDates.filter(x => x.date < now));
-  const soon = groupTimelineByPart(withDates.filter(x => x.date >= now && (x.date - now) <= 7*86400000));
-  const later = groupTimelineByPart(withDates.filter(x => (x.date - now) > 7*86400000));
-  const noDateGroups = groupTimelineByPart(noDates);
 
-  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
-  const nodeHtml = (g, cls, dateLabel) => `
-    <div class="timeline-node ${cls}">
-      <div class="timeline-dot"></div>
-      <div class="timeline-node-head">
-        <span class="timeline-node-name">${g.name}</span>
-        <span class="timeline-node-date">${dateLabel}</span>
-      </div>
-      <div class="timeline-node-meta">
-        <span>${g.partId}</span>
+  // 依實際日期分組，同一天算同一個時間軸節點
+  const dateMap = {};
+  const dateOrder = [];
+  withDates.forEach(x=>{
+    const key = x.date.toDateString();
+    if(!dateMap[key]){ dateMap[key] = { date: x.date, tasks: [] }; dateOrder.push(key); }
+    dateMap[key].tasks.push(x.task);
+  });
+  dateOrder.sort((a,b)=> dateMap[a].date - dateMap[b].date);
+
+  const fmtShort = d => `${d.getMonth()+1}/${d.getDate()}`;
+  const THUMB_LIMIT = 3;
+  let colIdx = 0;
+
+  const itemCard = (g) => `
+    <div class="timeline-item-card">
+      <div class="timeline-item-name">${g.name}</div>
+      <div class="timeline-item-meta">
+        <span class="timeline-item-part">${g.partId}</span>
         ${g.entries.map(e=>`<span class="bom-badge ${e.status}">👤 ${e.followup}</span>`).join('')}
       </div>
     </div>`;
 
-  let html = '';
-  if(overdue.length){
-    html += `<div class="timeline-section-title">🔴 已過期（${overdue.length}）</div>`;
-    html += `<div class="timeline-track">${overdue.map(g=>nodeHtml(g,'overdue',fmt(g.date))).join('')}</div>`;
-  }
-  if(soon.length){
-    html += `<div class="timeline-section-title">🟠 即將到期（7天內，${soon.length}）</div>`;
-    html += `<div class="timeline-track">${soon.map(g=>nodeHtml(g,'soon',fmt(g.date))).join('')}</div>`;
-  }
-  if(later.length){
-    html += `<div class="timeline-section-title">⚪ 之後（${later.length}）</div>`;
-    html += `<div class="timeline-track">${later.map(g=>nodeHtml(g,'later',fmt(g.date))).join('')}</div>`;
-  }
-  if(noDateGroups.length){
-    html += `<div class="timeline-section-title">📝 期限文字無法辨識日期（${noDateGroups.length}）</div>`;
-    html += `<div class="timeline-track">${noDateGroups.map(g=>nodeHtml(g,'',g.deadlineText)).join('')}</div>`;
-  }
-  if(!html){
-    html = `<div class="history-empty">目前沒有任何項目設定期限</div>`;
-  }
-  el.innerHTML = html;
-}
+  const columnHtml = (cls, dateLabel, groups) => {
+    colIdx++;
+    const cid = `tlcol-${colIdx}`;
+    const shown = groups.slice(0, THUMB_LIMIT);
+    const rest = groups.slice(THUMB_LIMIT);
+    let inner = shown.map(itemCard).join('');
+    if(rest.length){
+      inner += `<div class="timeline-more-btn" data-target="${cid}">▾ 還有 ${rest.length} 項</div>`;
+      inner += `<div class="timeline-more-list" id="${cid}" style="display:none;">${rest.map(itemCard).join('')}</div>`;
+    }
+    return `
+      <div class="timeline-col ${cls}">
+        <div class="timeline-col-dot"></div>
+        <div class="timeline-col-date">${dateLabel}</div>
+        <div class="timeline-col-count">${groups.length} 項</div>
+        <div class="timeline-col-items">${inner}</div>
+      </div>`;
+  };
 
-document.getElementById('timelineBtn').onclick = ()=>{
-  renderTimelineList();
-  document.getElementById('timelineOverlay').classList.add('show');
-};
-document.getElementById('timelineClose').onclick = ()=>{
-  document.getElementById('timelineOverlay').classList.remove('show');
-};
-document.getElementById('timelineOverlay').onclick = (e)=>{
-  if(e.target.id === 'timelineOverlay') e.target.classList.remove('show');
-};
+  let columnsHtml = '';
+  dateOrder.forEach(key=>{
+    const bucket = dateMap[key];
+    const isOverdue = bucket.date < now;
+    const isSoon = !isOverdue && (bucket.date - now) <= 7*86400000;
+    const cls = isOverdue ? 'overdue' : (isSoon ? 'soon' : 'later');
+    const groups = groupTimelineColumn(bucket.tasks);
+    columnsHtml += columnHtml(cls, fmtShort(bucket.date), groups);
+  });
+  if(noDates.length){
+    const groups = groupTimelineColumn(noDates);
+    columnsHtml += columnHtml('nodate', '無日期', groups);
+  }
+
+  if(!columnsHtml){
+    el.innerHTML = `<div class="empty-note">目前沒有任何項目設定期限</div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="timeline-legend">
+      <span><i class="dot" style="background:var(--red)"></i>已過期</span>
+      <span><i class="dot" style="background:var(--amber)"></i>7天內到期</span>
+      <span><i class="dot" style="background:var(--teal)"></i>之後</span>
+      <span><i class="dot" style="background:var(--ink-soft)"></i>無日期</span>
+    </div>
+    <div class="timeline-page">
+      <div class="timeline-axis-track">${columnsHtml}</div>
+    </div>
+  `;
+  el.querySelectorAll('.timeline-more-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+      const target = document.getElementById(btn.dataset.target);
+      const isHidden = target.style.display === 'none';
+      target.style.display = isHidden ? 'block' : 'none';
+      btn.textContent = isHidden ? '▴ 收合' : btn.textContent.replace('▴ 收合', `▾ 還有 ${target.children.length} 項`);
+    };
+  });
+}
 
 function renderPersonalPanel(){
   const el = document.getElementById('personalPanel');
@@ -1196,6 +1234,7 @@ function renderAll(){
   renderOwnerView();
   renderBomView();
   renderRawView();
+  renderTimelinePage();
   attachEditHandlers();
 }
 
@@ -1207,6 +1246,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     document.getElementById('ownerView').style.display = currentView==='owner' ? 'block':'none';
     document.getElementById('bomView').style.display = currentView==='bom' ? 'block':'none';
     document.getElementById('rawView').style.display = currentView==='raw' ? 'block':'none';
+    document.getElementById('timelineView').style.display = currentView==='timeline' ? 'block':'none';
   };
 });
 
