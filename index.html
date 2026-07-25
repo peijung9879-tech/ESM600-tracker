@@ -27,7 +27,7 @@
   *{box-sizing:border-box;}
   body{
     margin:0; font-family:var(--sans); background:var(--bg); color:var(--ink);
-    padding:28px; -webkit-font-smoothing:antialiased; overflow-x:hidden;
+    padding:28px; -webkit-font-smoothing:antialiased;
   }
   h1{
     font-size:22px; font-weight:700; margin:0 0 4px 0; letter-spacing:-0.01em;
@@ -84,6 +84,7 @@
   .owner-head .meta{ font-size:12px; color:var(--ink-soft); font-family:var(--mono);}
 
   table{ width:100%; border-collapse:collapse; }
+  .table-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
   th{
     text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
     color:var(--ink-soft); padding:8px 16px; border-bottom:1px solid var(--line); font-weight:600;
@@ -798,6 +799,7 @@ function renderOwnerView(){
         <div class="name">${name}</div>
         <div class="meta">共 ${items.length} 項　·　急件 ${urgentCount}　·　待確認 ${pendingCount}</div>
       </div>
+      <div class="table-scroll">
       <table>
         <thead><tr>
           <th style="width:70px">項次</th>
@@ -832,6 +834,7 @@ function renderOwnerView(){
             </tr>`).join('')}
         </tbody>
       </table>
+      </div>
     </div>`;
   }).join('');
 }
@@ -868,6 +871,7 @@ function renderRawView(){
   const data = filteredData();
   const el = document.getElementById('rawView');
   el.innerHTML = `
+    <div class="table-scroll">
     <table class="raw-table">
       <thead><tr>
         <th style="width:70px">項次</th>
@@ -901,7 +905,8 @@ function renderRawView(){
             <td>${(i.partId.startsWith('新增') || i.partId.startsWith('自訂-')) ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
           </tr>`).join('')}
       </tbody>
-    </table>`;
+    </table>
+    </div>`;
 }
 
 function fieldLabel(f){
