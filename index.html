@@ -488,7 +488,8 @@ function buildInitialTasks(){
         status: part.status,
         deadline: part.deadline,
         followup: owner,
-        note: part.note
+        note: part.note,
+        progress: ''
       });
     });
   });
@@ -681,6 +682,7 @@ function renderOwnerView(){
           <th style="width:90px">期限</th>
           <th style="width:110px">負責人</th>
           <th>備註</th>
+          <th>現況</th>
           <th style="width:36px"></th>
         </tr></thead>
         <tbody>
@@ -700,6 +702,7 @@ function renderOwnerView(){
               <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
+              <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
               <td>${i.partId.startsWith('自訂-') ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
             </tr>`).join('')}
         </tbody>
@@ -748,6 +751,7 @@ function renderRawView(){
         <th style="width:90px">期限</th>
         <th style="width:110px">負責人</th>
         <th>備註</th>
+        <th>現況</th>
         <th style="width:36px"></th>
       </tr></thead>
       <tbody>
@@ -767,6 +771,7 @@ function renderRawView(){
             <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
+            <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
             <td>${i.partId.startsWith('自訂-') ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
           </tr>`).join('')}
       </tbody>
@@ -774,7 +779,7 @@ function renderRawView(){
 }
 
 function fieldLabel(f){
-  return {followup:'負責人', note:'備註', deadline:'期限', status:'狀態', name:'品名'}[f] || f;
+  return {followup:'負責人', note:'備註', deadline:'期限', status:'狀態', name:'品名', progress:'現況'}[f] || f;
 }
 
 async function handleFieldChange(id, field, oldRaw, newRaw){
@@ -872,9 +877,9 @@ function showToast(msg){
 }
 
 function exportCSV(){
-  const headers = ["項次","品名","外觀相關","狀態","期限","負責人","備註"];
+  const headers = ["項次","品名","外觀相關","狀態","期限","負責人","備註","現況"];
   const rows = DATA.map(d=>[
-    d.partId, d.name, d.exterior ? "是" : "", statusLabel(d.status), d.deadline||"", d.followup||"", d.note||""
+    d.partId, d.name, d.appearance ? "是" : "", statusLabel(d.status), d.deadline||"", d.followup||"", d.note||"", d.progress||""
   ]);
   const csv = [headers, ...rows].map(r =>
     r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')
@@ -1089,7 +1094,8 @@ async function addPersonalItem(){
     status: 'pending',
     deadline,
     followup: activeOwner,
-    note
+    note,
+    progress: ''
   };
   DATA.push(newTask);
   HISTORY.unshift({
