@@ -99,6 +99,9 @@
   .status-pill.urgent{ background:var(--red-soft); color:var(--red); }
   .deadline{ font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
   .followup{ font-size:12px; color:var(--ink-soft);}
+  .progress-cell{
+    min-height:160px; display:table-cell; vertical-align:top; background:#fbfaf7;
+  }
   .empty-note{ padding:20px 16px; color:var(--ink-soft); font-size:13px; font-style:italic;}
 
   /* --- raw view --- */
@@ -702,7 +705,7 @@ function renderOwnerView(){
               <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
-              <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
+              <td class="followup editable progress-cell" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
               <td>${i.partId.startsWith('自訂-') ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
             </tr>`).join('')}
         </tbody>
@@ -771,7 +774,7 @@ function renderRawView(){
             <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
-            <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
+            <td class="followup editable progress-cell" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
             <td>${i.partId.startsWith('自訂-') ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
           </tr>`).join('')}
       </tbody>
