@@ -214,6 +214,10 @@
   }
   .status-select.blocked{ background:var(--lock-soft); color:var(--lock); }
   .status-select:focus{ outline:2px solid var(--teal); outline-offset:2px; }
+  .co-owners{
+    font-size:9.5px; color:var(--ink-soft); margin-top:4px; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; max-width:100px; cursor:default;
+  }
 
   .editable:empty:before{ content:attr(data-placeholder); color:#b3afa5; font-style:italic; }
 
@@ -572,6 +576,13 @@ function filteredData(){
   return DATA.filter(d => currentFilter === "all" || d.status === currentFilter);
 }
 
+function coOwnersHtml(task){
+  const others = DATA.filter(d => d.partId === task.partId && d.id !== task.id);
+  if(!others.length) return '';
+  const names = others.map(d => d.followup || '未指派').join('、');
+  return `<div class="co-owners" title="同一項次也指派給：${names}">👥 ${names}</div>`;
+}
+
 function getActionOwners(d){
   if(!d.followup || !d.followup.trim()) return ["未指派"];
   const names = [...new Set(
@@ -701,6 +712,7 @@ function renderOwnerView(){
                   <option value="pending" ${i.status==='pending'?'selected':''}>待確認</option>
                   <option value="urgent" ${i.status==='urgent'?'selected':''}>急件</option>
                 </select>
+                ${coOwnersHtml(i)}
               </td>
               <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
@@ -770,6 +782,7 @@ function renderRawView(){
                 <option value="pending" ${i.status==='pending'?'selected':''}>待確認</option>
                 <option value="urgent" ${i.status==='urgent'?'selected':''}>急件</option>
               </select>
+              ${coOwnersHtml(i)}
             </td>
             <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
