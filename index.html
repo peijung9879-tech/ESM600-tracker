@@ -27,7 +27,7 @@
   *{box-sizing:border-box;}
   body{
     margin:0; font-family:var(--sans); background:var(--bg); color:var(--ink);
-    padding:28px; -webkit-font-smoothing:antialiased;
+    padding:28px; -webkit-font-smoothing:antialiased; overflow-x:hidden;
   }
   h1{
     font-size:22px; font-weight:700; margin:0 0 4px 0; letter-spacing:-0.01em;
@@ -281,6 +281,7 @@
     background:var(--panel); border:1px solid var(--line); border-radius:14px;
     padding:18px 20px; display:flex; flex-direction:column; gap:12px; cursor:pointer;
     transition:box-shadow .15s, border-color .15s, transform .15s;
+    min-width:0; box-sizing:border-box; overflow:hidden;
   }
   .dash-card:hover{
     border-color:var(--teal); box-shadow:0 6px 18px rgba(28,27,25,.08); transform:translateY(-1px);
