@@ -207,6 +207,14 @@
   .progress-text{
     font-size:12px; color:var(--ink-soft); margin-top:8px; font-family:var(--mono); font-weight:600;
   }
+  .add-item-grid{
+    display:grid; grid-template-columns:1fr 140px; gap:8px;
+  }
+  .add-item-input{
+    font-family:var(--sans); font-size:13px; border:1px solid var(--line); border-radius:6px;
+    padding:8px 10px; background:#fff; color:var(--ink);
+  }
+  .add-item-note{ grid-column:1 / -1; }
 
   /* --- overview dashboard (front page) --- */
   .dashboard-grid{
@@ -871,7 +879,64 @@ function renderPersonalPanel(){
     <div class="inprogress-highlight">🔵 進行中：${inprogText}</div>
     <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
     <div class="progress-text">已完成 ${done} / ${total} 項　·　完成率 ${pct}%</div>
+    <button class="save-btn" id="addItemBtn" style="margin-top:12px;">＋ 新增項目</button>
+    <div id="addItemForm" style="display:none; margin-top:12px;">
+      <div class="add-item-grid">
+        <input type="text" id="newItemName" placeholder="品名 *" class="add-item-input">
+        <input type="text" id="newItemDeadline" placeholder="期限（例：8月5日）" class="add-item-input">
+        <input type="text" id="newItemNote" placeholder="備註" class="add-item-input add-item-note">
+      </div>
+      <div style="margin-top:8px; display:flex; gap:8px;">
+        <button class="save-btn" id="confirmAddItemBtn">確認新增</button>
+        <button class="history-btn" id="cancelAddItemBtn">取消</button>
+      </div>
+    </div>
   `;
+  document.getElementById('addItemBtn').onclick = ()=>{
+    document.getElementById('addItemForm').style.display = 'block';
+    document.getElementById('addItemBtn').style.display = 'none';
+    document.getElementById('newItemName').focus();
+  };
+  document.getElementById('cancelAddItemBtn').onclick = ()=>{
+    document.getElementById('addItemForm').style.display = 'none';
+    document.getElementById('addItemBtn').style.display = 'inline-block';
+  };
+  document.getElementById('confirmAddItemBtn').onclick = addPersonalItem;
+}
+
+async function addPersonalItem(){
+  const nameInput = document.getElementById('newItemName');
+  const deadlineInput = document.getElementById('newItemDeadline');
+  const noteInput = document.getElementById('newItemNote');
+  const name = nameInput.value.trim();
+  if(!name){
+    nameInput.focus();
+    showToast('⚠️ 品名不能空白');
+    return;
+  }
+  const deadline = deadlineInput.value.trim();
+  const note = noteInput.value.trim();
+  const partId = `自訂-${Date.now().toString().slice(-6)}`;
+  const newTask = {
+    id: `${partId}::${activeOwner}`,
+    partId,
+    name,
+    status: 'pending',
+    deadline,
+    followup: activeOwner,
+    note
+  };
+  DATA.push(newTask);
+  HISTORY.unshift({
+    id: newTask.id, partId, name, assignee: activeOwner, field: 'new',
+    oldVal: '(不存在)', newVal: `新增項目：${name}`,
+    time: new Date().toLocaleString('zh-TW', {hour12:false})
+  });
+  showToast('新增中…');
+  await Promise.all([persistData(), persistHistory()]);
+  renderHistoryList();
+  renderAll();
+  showToast(`已新增「${name}」，已同步到共用雲端`);
 }
 
 function renderDashboard(){
