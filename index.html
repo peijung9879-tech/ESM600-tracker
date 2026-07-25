@@ -386,6 +386,86 @@
   .dash-card.minor .dash-inprogress{ font-size:9.5px; padding:3px 6px; min-height:auto; line-height:1.3; }
   .dash-card.minor .dash-blocked{ font-size:9.5px; padding:3px 6px; line-height:1.3; }
   .dash-card.minor .dash-meta{ font-size:9px; }
+
+  /* --- Mobile mode --- */
+  body.mobile-mode{
+    padding:14px 10px;
+  }
+  body.mobile-mode h1{ font-size:17px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  body.mobile-mode .subtitle{ display:none; }
+  body.mobile-mode .load-panel,
+  body.mobile-mode .controls .tabs,
+  body.mobile-mode .edit-hint,
+  body.mobile-mode .personal-panel,
+  body.mobile-mode #ownerView,
+  body.mobile-mode #bomView,
+  body.mobile-mode #rawView{
+    display:none !important;
+  }
+
+  .mobile-page-switch{ display:none; }
+  body.mobile-mode .mobile-page-switch{
+    display:flex; gap:6px; background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:4px; margin:10px 0 12px;
+  }
+  .mobile-page-btn{
+    flex:1; font-family:var(--sans); font-size:13px; font-weight:700; padding:9px 6px;
+    border:none; border-radius:7px; background:none; color:var(--ink-soft); cursor:pointer;
+  }
+  .mobile-page-btn.active{ background:var(--ink); color:#fff; }
+
+  body.mobile-mode .dashboard-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;
+  }
+  body.mobile-mode .dash-card{
+    padding:10px 11px; gap:6px;
+  }
+  body.mobile-mode .dash-card-head{ align-items:center; }
+  body.mobile-mode .dash-card-name{ font-size:12.5px; line-height:1.2; }
+  body.mobile-mode .dash-card-pct{ font-size:19px; }
+  body.mobile-mode .dash-progress-track{ height:5px; }
+  body.mobile-mode .dash-inprogress,
+  body.mobile-mode .dash-blocked{
+    font-size:9.5px; padding:4px 6px; min-height:auto; line-height:1.3;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  body.mobile-mode .dash-meta{ font-size:8.5px; }
+  body.mobile-mode .dash-card.featured,
+  body.mobile-mode .dash-card.minor{
+    grid-column:auto; padding:10px 11px; opacity:1;
+  }
+  body.mobile-mode .dash-card.featured .dash-card-name,
+  body.mobile-mode .dash-card.minor .dash-card-name{ font-size:12.5px; }
+  body.mobile-mode .dash-card.featured .dash-card-pct,
+  body.mobile-mode .dash-card.minor .dash-card-pct{ font-size:19px; }
+  body.mobile-mode .dash-card.featured .dash-inprogress,
+  body.mobile-mode .dash-card.minor .dash-inprogress,
+  body.mobile-mode .dash-card.featured .dash-blocked,
+  body.mobile-mode .dash-card.minor .dash-blocked{
+    font-size:9.5px; padding:4px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  body.mobile-mode .dash-card.featured .dash-meta,
+  body.mobile-mode .dash-card.minor .dash-meta{ font-size:8.5px; }
+
+  body.mobile-mode #timelineView{ margin-top:4px; }
+  body.mobile-mode .timeline-col{ width:150px; flex:0 0 150px; padding:0 10px; }
+  body.mobile-mode .timeline-item-name{ font-size:11.5px; }
+  body.mobile-mode .timeline-legend{ font-size:10px; gap:10px; flex-wrap:wrap; }
+
+  body.mobile-mode .controls{
+    flex-direction:column; align-items:stretch; gap:10px;
+  }
+  body.mobile-mode .toolbar-right{
+    flex-direction:column; align-items:stretch; gap:8px;
+  }
+  body.mobile-mode .filterbar{ display:flex; align-items:center; justify-content:space-between; }
+  body.mobile-mode .filterbar select{
+    flex:1; margin-left:10px; padding:9px 10px; font-size:14px;
+  }
+  body.mobile-mode .save-btn,
+  body.mobile-mode .history-btn{
+    width:100%; padding:11px; font-size:14px; text-align:center;
+  }
 </style>
 </head>
 <body>
@@ -396,6 +476,11 @@
 <div id="app">
   <h1>ESM600 ITS追蹤 <span class="shared-badge">☁ 共用雲端資料</span></h1>
   <p class="subtitle">資料來源：Google Sheet 車輛 BOM（階層編號版本），共 165 個零件。同一零件若列了多個負責人，已拆成各自獨立的任務，「品名」「負責人」「備註」都可直接編輯。標記 <span class="exterior-tag" style="margin-left:0">🎨 外觀</span> 的項次代表跟外觀造型相關。</p>
+
+  <div class="mobile-page-switch" id="mobilePageSwitch">
+    <button class="mobile-page-btn active" data-page="dashboard">📊 個別進度</button>
+    <button class="mobile-page-btn" data-page="timeline">🗓 時間軸</button>
+  </div>
 
   <div class="dashboard-grid" id="dashboardGrid"></div>
 
@@ -439,6 +524,7 @@
       <button class="history-btn" id="historyBtn">📜 編輯歷史</button>
       <button class="save-btn" id="exportBtn">匯出目前資料 (CSV)</button>
       <button class="save-btn" id="tvModeBtn">📺 電視模式</button>
+      <button class="save-btn" id="mobileModeBtn">📱 手機模式</button>
     </div>
   </div>
   <div class="edit-hint">💡 「品名」「狀態」「期限」「負責人」「備註」都可以直接在表格上編輯（狀態用下拉選單），改完會自動同步到共用雲端，任何人打開此頁都會看到最新內容，所有修改都會留在「編輯歷史」裡不會消失。想只看自己的清單，選上方「我是」，網址會記住你的選擇，下次直接用同一個連結就會自動只顯示你的項目。</div>
@@ -578,6 +664,20 @@ let currentFilter = "all";
 let currentView = "owner";
 let activeOwner = null;
 let tvMode = false;
+let mobileMode = false;
+let mobilePage = 'dashboard';
+
+function applyMobilePage(){
+  const dashEl = document.getElementById('dashboardGrid');
+  const tlEl = document.getElementById('timelineView');
+  if(mobileMode){
+    dashEl.style.display = mobilePage === 'dashboard' ? '' : 'none';
+    tlEl.style.display = mobilePage === 'timeline' ? 'block' : 'none';
+  } else {
+    dashEl.style.display = '';
+    tlEl.style.display = currentView === 'timeline' ? 'block' : 'none';
+  }
+}
 const PRIORITY_OWNERS = ["Cloud", "姝涵", "敬中", "星元", "嘉麟"];
 
 function filteredData(){
@@ -925,10 +1025,38 @@ document.getElementById('exportBtn').onclick = exportCSV;
 
 document.getElementById('tvModeBtn').onclick = ()=>{
   tvMode = !tvMode;
+  if(tvMode && mobileMode){
+    mobileMode = false;
+    document.body.classList.remove('mobile-mode');
+    document.getElementById('mobileModeBtn').textContent = '📱 手機模式';
+  }
   document.body.classList.toggle('tv-mode', tvMode);
   document.getElementById('tvModeBtn').textContent = tvMode ? '↩ 返回一般模式' : '📺 電視模式';
+  applyMobilePage();
   renderAll();
 };
+
+document.getElementById('mobileModeBtn').onclick = ()=>{
+  mobileMode = !mobileMode;
+  if(mobileMode && tvMode){
+    tvMode = false;
+    document.body.classList.remove('tv-mode');
+    document.getElementById('tvModeBtn').textContent = '📺 電視模式';
+  }
+  document.body.classList.toggle('mobile-mode', mobileMode);
+  document.getElementById('mobileModeBtn').textContent = mobileMode ? '↩ 返回一般模式' : '📱 手機模式';
+  applyMobilePage();
+  renderAll();
+};
+
+document.querySelectorAll('.mobile-page-btn').forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll('.mobile-page-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    mobilePage = btn.dataset.page;
+    applyMobilePage();
+  };
+});
 
 function renderHistoryList(){
   const el = document.getElementById('historyList');
