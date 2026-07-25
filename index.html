@@ -168,21 +168,29 @@
   /* --- timeline view --- */
   .timeline-section-title{
     font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
-    padding:14px 0 8px; color:var(--ink-soft);
+    padding:14px 0 10px; color:var(--ink-soft);
   }
   .timeline-section-title:first-child{ padding-top:4px; }
-  .timeline-row{
-    display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line);
-    font-size:13px;
+  .timeline-track{
+    position:relative; margin-left:6px; padding-left:22px; border-left:2px solid var(--line);
   }
-  .timeline-row:last-child{ border-bottom:none; }
-  .timeline-date{ font-family:var(--mono); font-size:12px; font-weight:700; min-width:64px; }
-  .timeline-row.overdue .timeline-date{ color:var(--red); }
-  .timeline-row.soon .timeline-date{ color:var(--amber); }
-  .timeline-row.later .timeline-date{ color:var(--ink-soft); }
-  .timeline-part{ font-family:var(--mono); font-size:11px; color:var(--ink-soft); min-width:70px; }
-  .timeline-name{ flex:1; }
-  .timeline-owner{ font-size:12px; color:var(--ink-soft); min-width:70px; text-align:right; }
+  .timeline-track:last-of-type{ padding-bottom:2px; }
+  .timeline-node{ position:relative; padding-bottom:18px; }
+  .timeline-node:last-child{ padding-bottom:2px; }
+  .timeline-dot{
+    position:absolute; left:-29px; top:3px; width:12px; height:12px; border-radius:50%;
+    background:var(--ink-soft); border:3px solid var(--panel); box-shadow:0 0 0 1px var(--line);
+  }
+  .timeline-node.overdue .timeline-dot{ background:var(--red); box-shadow:0 0 0 1px var(--red); }
+  .timeline-node.soon .timeline-dot{ background:var(--amber); box-shadow:0 0 0 1px var(--amber); }
+  .timeline-node.later .timeline-dot{ background:var(--teal); box-shadow:0 0 0 1px var(--teal); }
+  .timeline-node-head{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .timeline-node-name{ font-size:14px; font-weight:700; color:var(--ink); }
+  .timeline-node-date{ font-family:var(--mono); font-size:11.5px; font-weight:700; }
+  .timeline-node.overdue .timeline-node-date{ color:var(--red); }
+  .timeline-node.soon .timeline-node-date{ color:var(--amber); }
+  .timeline-node.later .timeline-node-date{ color:var(--teal); }
+  .timeline-node-meta{ font-size:12px; color:var(--ink-soft); margin-top:3px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 
   .loading-screen{
     position:fixed; inset:0; background:var(--bg); display:flex; align-items:center;
@@ -936,6 +944,20 @@ function parseDeadline(str){
   return d;
 }
 
+function groupTimelineByPart(list){
+  const map = {};
+  const order = [];
+  list.forEach(x=>{
+    const pid = x.task.partId;
+    if(!map[pid]){
+      map[pid] = { partId: pid, name: x.task.name, date: x.date, deadlineText: x.task.deadline, entries: [] };
+      order.push(pid);
+    }
+    map[pid].entries.push({ followup: x.task.followup || '未指派', status: x.task.status });
+  });
+  return order.map(pid => map[pid]);
+}
+
 function renderTimelineList(){
   const el = document.getElementById('timelineList');
   const now = new Date();
@@ -945,46 +967,44 @@ function renderTimelineList(){
   DATA.forEach(d=>{
     const date = parseDeadline(d.deadline);
     if(date) withDates.push({ task: d, date });
-    else if(d.deadline) noDates.push(d);
+    else if(d.deadline) noDates.push({ task: d, date: null });
   });
   withDates.sort((a,b)=>a.date - b.date);
-  const overdue = withDates.filter(x => x.date < now);
-  const soon = withDates.filter(x => x.date >= now && (x.date - now) <= 7*86400000);
-  const later = withDates.filter(x => (x.date - now) > 7*86400000);
+  const overdue = groupTimelineByPart(withDates.filter(x => x.date < now));
+  const soon = groupTimelineByPart(withDates.filter(x => x.date >= now && (x.date - now) <= 7*86400000));
+  const later = groupTimelineByPart(withDates.filter(x => (x.date - now) > 7*86400000));
+  const noDateGroups = groupTimelineByPart(noDates);
 
   const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
-  const rowHtml = (x, cls) => `
-    <div class="timeline-row ${cls}">
-      <span class="timeline-date">${fmt(x.date)}</span>
-      <span class="timeline-part">${x.task.partId}</span>
-      <span class="timeline-name">${x.task.name}</span>
-      <span class="status-pill ${x.task.status}">${statusLabel(x.task.status)}</span>
-      <span class="timeline-owner">${x.task.followup || '未指派'}</span>
+  const nodeHtml = (g, cls, dateLabel) => `
+    <div class="timeline-node ${cls}">
+      <div class="timeline-dot"></div>
+      <div class="timeline-node-head">
+        <span class="timeline-node-name">${g.name}</span>
+        <span class="timeline-node-date">${dateLabel}</span>
+      </div>
+      <div class="timeline-node-meta">
+        <span>${g.partId}</span>
+        ${g.entries.map(e=>`<span class="bom-badge ${e.status}">👤 ${e.followup}</span>`).join('')}
+      </div>
     </div>`;
 
   let html = '';
   if(overdue.length){
     html += `<div class="timeline-section-title">🔴 已過期（${overdue.length}）</div>`;
-    html += overdue.map(x=>rowHtml(x,'overdue')).join('');
+    html += `<div class="timeline-track">${overdue.map(g=>nodeHtml(g,'overdue',fmt(g.date))).join('')}</div>`;
   }
   if(soon.length){
     html += `<div class="timeline-section-title">🟠 即將到期（7天內，${soon.length}）</div>`;
-    html += soon.map(x=>rowHtml(x,'soon')).join('');
+    html += `<div class="timeline-track">${soon.map(g=>nodeHtml(g,'soon',fmt(g.date))).join('')}</div>`;
   }
   if(later.length){
     html += `<div class="timeline-section-title">⚪ 之後（${later.length}）</div>`;
-    html += later.map(x=>rowHtml(x,'later')).join('');
+    html += `<div class="timeline-track">${later.map(g=>nodeHtml(g,'later',fmt(g.date))).join('')}</div>`;
   }
-  if(noDates.length){
-    html += `<div class="timeline-section-title">📝 期限文字無法辨識日期（${noDates.length}）</div>`;
-    html += noDates.map(t=>`
-      <div class="timeline-row">
-        <span class="timeline-date" style="color:var(--ink-soft)">${t.deadline}</span>
-        <span class="timeline-part">${t.partId}</span>
-        <span class="timeline-name">${t.name}</span>
-        <span class="status-pill ${t.status}">${statusLabel(t.status)}</span>
-        <span class="timeline-owner">${t.followup || '未指派'}</span>
-      </div>`).join('');
+  if(noDateGroups.length){
+    html += `<div class="timeline-section-title">📝 期限文字無法辨識日期（${noDateGroups.length}）</div>`;
+    html += `<div class="timeline-track">${noDateGroups.map(g=>nodeHtml(g,'',g.deadlineText)).join('')}</div>`;
   }
   if(!html){
     html = `<div class="history-empty">目前沒有任何項目設定期限</div>`;
