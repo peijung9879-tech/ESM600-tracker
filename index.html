@@ -165,6 +165,25 @@
   .history-item .h-new{ color:var(--teal); font-weight:600; }
   .history-empty{ padding:30px 0; text-align:center; color:var(--ink-soft); font-size:13px; }
 
+  /* --- timeline view --- */
+  .timeline-section-title{
+    font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+    padding:14px 0 8px; color:var(--ink-soft);
+  }
+  .timeline-section-title:first-child{ padding-top:4px; }
+  .timeline-row{
+    display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .timeline-row:last-child{ border-bottom:none; }
+  .timeline-date{ font-family:var(--mono); font-size:12px; font-weight:700; min-width:64px; }
+  .timeline-row.overdue .timeline-date{ color:var(--red); }
+  .timeline-row.soon .timeline-date{ color:var(--amber); }
+  .timeline-row.later .timeline-date{ color:var(--ink-soft); }
+  .timeline-part{ font-family:var(--mono); font-size:11px; color:var(--ink-soft); min-width:70px; }
+  .timeline-name{ flex:1; }
+  .timeline-owner{ font-size:12px; color:var(--ink-soft); min-width:70px; text-align:right; }
+
   .loading-screen{
     position:fixed; inset:0; background:var(--bg); display:flex; align-items:center;
     justify-content:center; flex-direction:column; gap:10px; z-index:300; font-size:13px; color:var(--ink-soft);
@@ -215,6 +234,11 @@
     padding:8px 10px; background:#fff; color:var(--ink);
   }
   .add-item-note{ grid-column:1 / -1; }
+  .delete-item-btn{
+    background:none; border:none; cursor:pointer; font-size:15px; padding:2px 6px;
+    border-radius:6px; opacity:.6; transition:opacity .15s, background .15s;
+  }
+  .delete-item-btn:hover{ opacity:1; background:var(--red-soft); }
 
   /* --- overview dashboard (front page) --- */
   .dashboard-grid{
@@ -382,6 +406,7 @@
       <button class="history-btn" id="historyBtn">📜 編輯歷史</button>
       <button class="save-btn" id="exportBtn">匯出目前資料 (CSV)</button>
       <button class="save-btn" id="tvModeBtn">📺 電視模式</button>
+      <button class="history-btn" id="timelineBtn">🗓 時間軸</button>
     </div>
   </div>
   <div class="edit-hint">💡 「品名」「狀態」「期限」「負責人」「備註」都可以直接在表格上編輯（狀態用下拉選單），改完會自動同步到共用雲端，任何人打開此頁都會看到最新內容，所有修改都會留在「編輯歷史」裡不會消失。想只看自己的清單，選上方「我是」，網址會記住你的選擇，下次直接用同一個連結就會自動只顯示你的項目。</div>
@@ -400,6 +425,16 @@
       <button class="history-close" id="historyClose">×</button>
     </div>
     <div class="history-list" id="historyList"></div>
+  </div>
+</div>
+
+<div class="history-overlay" id="timelineOverlay">
+  <div class="history-modal" style="max-width:760px;">
+    <div class="history-modal-head">
+      <h2>時間軸檢視（依期限排序）</h2>
+      <button class="history-close" id="timelineClose">×</button>
+    </div>
+    <div class="history-list" id="timelineList"></div>
   </div>
 </div>
 
@@ -638,6 +673,7 @@ function renderOwnerView(){
           <th style="width:90px">期限</th>
           <th style="width:110px">負責人</th>
           <th>備註</th>
+          <th style="width:36px"></th>
         </tr></thead>
         <tbody>
           ${items.map(i=>`
@@ -656,6 +692,7 @@ function renderOwnerView(){
               <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
+              <td>${i.partId.startsWith('自訂-') ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -703,6 +740,7 @@ function renderRawView(){
         <th style="width:90px">期限</th>
         <th style="width:110px">負責人</th>
         <th>備註</th>
+        <th style="width:36px"></th>
       </tr></thead>
       <tbody>
         ${data.map(i=>`
@@ -721,6 +759,7 @@ function renderRawView(){
             <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
+            <td>${i.partId.startsWith('自訂-') ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -779,6 +818,29 @@ function attachEditHandlers(){
       handleFieldChange(id, 'status', oldVal, newVal);
     });
   });
+  document.querySelectorAll('.delete-item-btn').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      deleteTask(e.target.dataset.id);
+    });
+  });
+}
+
+async function deleteTask(id){
+  const idx = DATA.findIndex(d=>d.id===id);
+  if(idx === -1) return;
+  const entry = DATA[idx];
+  if(!confirm(`確定要刪除「${entry.name}」這個自訂項目嗎？這個動作無法復原。`)) return;
+  DATA.splice(idx, 1);
+  HISTORY.unshift({
+    id: entry.id, partId: entry.partId, name: entry.name, assignee: entry.followup, field: 'delete',
+    oldVal: `${entry.name}（${statusLabel(entry.status)}）`, newVal: '(已刪除)',
+    time: new Date().toLocaleString('zh-TW', {hour12:false})
+  });
+  showToast('刪除中…');
+  await Promise.all([persistData(), persistHistory()]);
+  renderHistoryList();
+  renderAll();
+  showToast(`已刪除「${entry.name}」，已同步到共用雲端`);
 }
 
 function syncOtherView(id, field, val){
@@ -856,6 +918,89 @@ document.getElementById('historyClose').onclick = ()=>{
 };
 document.getElementById('historyOverlay').onclick = (e)=>{
   if(e.target.id === 'historyOverlay') e.target.classList.remove('show');
+};
+
+function parseDeadline(str){
+  if(!str) return null;
+  const m = str.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  if(!m) return null;
+  const now = new Date();
+  let year = now.getFullYear();
+  const month = parseInt(m[1], 10) - 1;
+  const day = parseInt(m[2], 10);
+  let d = new Date(year, month, day);
+  // 如果算出來的日期比現在早超過9個月，很可能是指明年（跨年狀況），自動加一年
+  if((now - d) / 86400000 > 270){
+    d = new Date(year + 1, month, day);
+  }
+  return d;
+}
+
+function renderTimelineList(){
+  const el = document.getElementById('timelineList');
+  const now = new Date();
+  now.setHours(0,0,0,0);
+  const withDates = [];
+  const noDates = [];
+  DATA.forEach(d=>{
+    const date = parseDeadline(d.deadline);
+    if(date) withDates.push({ task: d, date });
+    else if(d.deadline) noDates.push(d);
+  });
+  withDates.sort((a,b)=>a.date - b.date);
+  const overdue = withDates.filter(x => x.date < now);
+  const soon = withDates.filter(x => x.date >= now && (x.date - now) <= 7*86400000);
+  const later = withDates.filter(x => (x.date - now) > 7*86400000);
+
+  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+  const rowHtml = (x, cls) => `
+    <div class="timeline-row ${cls}">
+      <span class="timeline-date">${fmt(x.date)}</span>
+      <span class="timeline-part">${x.task.partId}</span>
+      <span class="timeline-name">${x.task.name}</span>
+      <span class="status-pill ${x.task.status}">${statusLabel(x.task.status)}</span>
+      <span class="timeline-owner">${x.task.followup || '未指派'}</span>
+    </div>`;
+
+  let html = '';
+  if(overdue.length){
+    html += `<div class="timeline-section-title">🔴 已過期（${overdue.length}）</div>`;
+    html += overdue.map(x=>rowHtml(x,'overdue')).join('');
+  }
+  if(soon.length){
+    html += `<div class="timeline-section-title">🟠 即將到期（7天內，${soon.length}）</div>`;
+    html += soon.map(x=>rowHtml(x,'soon')).join('');
+  }
+  if(later.length){
+    html += `<div class="timeline-section-title">⚪ 之後（${later.length}）</div>`;
+    html += later.map(x=>rowHtml(x,'later')).join('');
+  }
+  if(noDates.length){
+    html += `<div class="timeline-section-title">📝 期限文字無法辨識日期（${noDates.length}）</div>`;
+    html += noDates.map(t=>`
+      <div class="timeline-row">
+        <span class="timeline-date" style="color:var(--ink-soft)">${t.deadline}</span>
+        <span class="timeline-part">${t.partId}</span>
+        <span class="timeline-name">${t.name}</span>
+        <span class="status-pill ${t.status}">${statusLabel(t.status)}</span>
+        <span class="timeline-owner">${t.followup || '未指派'}</span>
+      </div>`).join('');
+  }
+  if(!html){
+    html = `<div class="history-empty">目前沒有任何項目設定期限</div>`;
+  }
+  el.innerHTML = html;
+}
+
+document.getElementById('timelineBtn').onclick = ()=>{
+  renderTimelineList();
+  document.getElementById('timelineOverlay').classList.add('show');
+};
+document.getElementById('timelineClose').onclick = ()=>{
+  document.getElementById('timelineOverlay').classList.remove('show');
+};
+document.getElementById('timelineOverlay').onclick = (e)=>{
+  if(e.target.id === 'timelineOverlay') e.target.classList.remove('show');
 };
 
 function renderPersonalPanel(){
