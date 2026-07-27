@@ -213,6 +213,41 @@
   }
   .timeline-more-btn:hover{ background:var(--teal); color:#fff; }
 
+  /* --- 主要目標時程 --- */
+  .milestone-manager{
+    background:var(--amberSoft, #FBEEDD); background:#FBF3E4; border:1px solid #E8CFA3; border-radius:10px;
+    padding:14px 16px; margin-bottom:16px;
+  }
+  .milestone-manager-title{ font-size:12.5px; font-weight:700; color:#8a5a1e; margin-bottom:10px; }
+  .milestone-chip-list{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+  .milestone-chip{
+    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
+    background:#fff; border:1px solid #E8CFA3; color:#8a5a1e; border-radius:20px; padding:5px 8px 5px 12px;
+  }
+  .milestone-chip-delete{
+    background:none; border:none; cursor:pointer; font-size:14px; color:#c0433a; line-height:1;
+    padding:0 4px;
+  }
+  .milestone-empty{ font-size:12px; color:var(--ink-soft); font-style:italic; }
+  .milestone-form-grid{ display:flex; gap:8px; flex-wrap:wrap; }
+  .milestone-date-input{ width:190px; flex:0 0 auto; }
+
+  .timeline-milestone-card{
+    background:#FBF3E4; border:1.5px solid #D9A441; border-radius:8px;
+    padding:9px 10px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:6px;
+  }
+  .timeline-milestone-label{ font-size:12px; font-weight:700; color:#8a5a1e; line-height:1.3; }
+  .milestone-delete-btn{
+    background:none; border:none; cursor:pointer; font-size:13px; padding:2px 4px; opacity:.6; flex:0 0 auto;
+  }
+  .milestone-delete-btn:hover{ opacity:1; }
+  .timeline-milestone-marker{
+    position:absolute; top:-22px; left:50%; transform:translateX(-50%); font-size:15px; z-index:2;
+  }
+  .timeline-col.has-milestone .timeline-col-dot{
+    background:#D9A441; box-shadow:0 0 0 2px #D9A441;
+  }
+
   .loading-screen{
     position:fixed; inset:0; background:var(--bg); display:flex; align-items:center;
     justify-content:center; flex-direction:column; gap:10px; z-index:300; font-size:13px; color:var(--ink-soft);
@@ -601,8 +636,10 @@ function buildInitialTasks(){
 
 let DATA = [];
 let HISTORY = [];
+let MILESTONES = [];
 const STORAGE_KEY = 'tracker-current-v14';
 const HISTORY_KEY = 'tracker-history-v14';
+const MILESTONES_KEY = 'tracker-milestones-v1';
 
 function showDebugError(msg){
   const el = document.getElementById('debugBanner');
@@ -631,6 +668,12 @@ async function initData(){
   }catch(err){
     HISTORY = [];
   }
+  try{
+    const ms = await storage.get(MILESTONES_KEY);
+    MILESTONES = ms ? JSON.parse(ms.value) : [];
+  }catch(err){
+    MILESTONES = [];
+  }
   loadingEl.style.display = 'none';
   const urlOwner = new URLSearchParams(window.location.search).get('owner');
   if(urlOwner){
@@ -638,6 +681,15 @@ async function initData(){
     currentView = 'owner';
   }
   renderAll();
+}
+
+async function persistMilestones(){
+  try{
+    await storage.set(MILESTONES_KEY, JSON.stringify(MILESTONES));
+  }catch(err){
+    console.error('儲存目標時程失敗', err);
+    showDebugError('儲存目標時程失敗：' + err.message);
+  }
 }
 
 async function persistData(){
@@ -1139,9 +1191,20 @@ function renderTimelinePage(){
   const dateOrder = [];
   withDates.forEach(x=>{
     const key = x.date.toDateString();
-    if(!dateMap[key]){ dateMap[key] = { date: x.date, tasks: [] }; dateOrder.push(key); }
+    if(!dateMap[key]){ dateMap[key] = { date: x.date, tasks: [], milestones: [] }; dateOrder.push(key); }
     dateMap[key].tasks.push(x.task);
   });
+
+  // 合併「主要目標時程」的日期，即使當天沒有任務也要建立節點
+  const milestoneNoDate = [];
+  MILESTONES.forEach(m=>{
+    const date = parseDeadline(m.date);
+    if(!date){ milestoneNoDate.push(m); return; }
+    const key = date.toDateString();
+    if(!dateMap[key]){ dateMap[key] = { date, tasks: [], milestones: [] }; dateOrder.push(key); }
+    dateMap[key].milestones.push(m);
+  });
+
   dateOrder.sort((a,b)=> dateMap[a].date - dateMap[b].date);
 
   const fmtShort = d => `${d.getMonth()+1}/${d.getDate()}`;
@@ -1157,18 +1220,27 @@ function renderTimelinePage(){
       </div>
     </div>`;
 
-  const columnHtml = (cls, dateLabel, groups) => {
+  const milestoneCard = (m) => `
+    <div class="timeline-milestone-card">
+      <div class="timeline-milestone-label">🎯 ${m.label}</div>
+      <button class="milestone-delete-btn" data-milestone-id="${m.id}" title="刪除這個目標時程">🗑</button>
+    </div>`;
+
+  const columnHtml = (cls, dateLabel, groups, milestones) => {
     colIdx++;
     const cid = `tlcol-${colIdx}`;
     const shown = groups.slice(0, THUMB_LIMIT);
     const rest = groups.slice(THUMB_LIMIT);
-    let inner = shown.map(itemCard).join('');
+    const msHtml = (milestones || []).map(milestoneCard).join('');
+    let inner = msHtml + shown.map(itemCard).join('');
     if(rest.length){
       inner += `<div class="timeline-more-btn" data-target="${cid}">▾ 還有 ${rest.length} 項</div>`;
       inner += `<div class="timeline-more-list" id="${cid}" style="display:none;">${rest.map(itemCard).join('')}</div>`;
     }
+    const hasMilestone = milestones && milestones.length;
     return `
-      <div class="timeline-col ${cls}">
+      <div class="timeline-col ${cls} ${hasMilestone ? 'has-milestone' : ''}">
+        ${hasMilestone ? '<div class="timeline-milestone-marker">🎯</div>' : ''}
         <div class="timeline-col-dot"></div>
         <div class="timeline-col-date">${dateLabel}</div>
         <div class="timeline-col-count">${groups.length} 項</div>
@@ -1183,24 +1255,49 @@ function renderTimelinePage(){
     const isSoon = !isOverdue && (bucket.date - now) <= 7*86400000;
     const cls = isOverdue ? 'overdue' : (isSoon ? 'soon' : 'later');
     const groups = groupTimelineColumn(bucket.tasks);
-    columnsHtml += columnHtml(cls, fmtShort(bucket.date), groups);
+    columnsHtml += columnHtml(cls, fmtShort(bucket.date), groups, bucket.milestones);
   });
   if(noDates.length){
     const groups = groupTimelineColumn(noDates);
-    columnsHtml += columnHtml('nodate', '無日期', groups);
+    columnsHtml += columnHtml('nodate', '無日期', groups, milestoneNoDate);
+  } else if(milestoneNoDate.length){
+    columnsHtml += columnHtml('nodate', '日期待確認', [], milestoneNoDate);
   }
 
+  const milestoneChips = MILESTONES.length
+    ? MILESTONES.map(m => `<span class="milestone-chip">🎯 ${m.date}．${m.label}<button class="milestone-chip-delete" data-milestone-id="${m.id}">×</button></span>`).join('')
+    : `<span class="milestone-empty">目前還沒有設定任何目標時程</span>`;
+
+  const milestoneManagerHtml = `
+    <div class="milestone-manager">
+      <div class="milestone-manager-title">🎯 主要目標時程（大家共用，任何人都能新增/修改）</div>
+      <div class="milestone-chip-list">${milestoneChips}</div>
+      <button class="save-btn" id="addMilestoneBtn">＋ 新增目標時程</button>
+      <div id="addMilestoneForm" style="display:none; margin-top:10px;">
+        <div class="milestone-form-grid">
+          <input type="text" id="newMilestoneDate" placeholder="日期 *（例：8月22日）" class="add-item-input milestone-date-input">
+          <input type="text" id="newMilestoneLabel" placeholder="目標名稱 *（例：整車輸出）" class="add-item-input" style="flex:1;">
+        </div>
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <button class="save-btn" id="confirmAddMilestoneBtn">確認新增</button>
+          <button class="history-btn" id="cancelAddMilestoneBtn">取消</button>
+        </div>
+      </div>
+    </div>`;
+
   if(!columnsHtml){
-    el.innerHTML = `<div class="empty-note">目前沒有任何項目設定期限</div>`;
+    el.innerHTML = milestoneManagerHtml + `<div class="empty-note">目前沒有任何項目設定期限</div>`;
+    attachMilestoneHandlers();
     return;
   }
 
-  el.innerHTML = `
+  el.innerHTML = milestoneManagerHtml + `
     <div class="timeline-legend">
       <span><i class="dot" style="background:var(--red)"></i>已過期</span>
       <span><i class="dot" style="background:var(--amber)"></i>7天內到期</span>
       <span><i class="dot" style="background:var(--teal)"></i>之後</span>
       <span><i class="dot" style="background:var(--ink-soft)"></i>無日期</span>
+      <span>🎯 目標時程節點</span>
     </div>
     <div class="timeline-page">
       <div class="timeline-axis-track">${columnsHtml}</div>
@@ -1214,6 +1311,62 @@ function renderTimelinePage(){
       btn.textContent = isHidden ? '▴ 收合' : btn.textContent.replace('▴ 收合', `▾ 還有 ${target.children.length} 項`);
     };
   });
+  attachMilestoneHandlers();
+}
+
+function attachMilestoneHandlers(){
+  const addBtn = document.getElementById('addMilestoneBtn');
+  const form = document.getElementById('addMilestoneForm');
+  if(addBtn){
+    addBtn.onclick = ()=>{
+      form.style.display = 'block';
+      addBtn.style.display = 'none';
+      document.getElementById('newMilestoneDate').focus();
+    };
+  }
+  const cancelBtn = document.getElementById('cancelAddMilestoneBtn');
+  if(cancelBtn){
+    cancelBtn.onclick = ()=>{
+      form.style.display = 'none';
+      addBtn.style.display = 'inline-block';
+    };
+  }
+  const confirmBtn = document.getElementById('confirmAddMilestoneBtn');
+  if(confirmBtn){
+    confirmBtn.onclick = addMilestone;
+  }
+  document.querySelectorAll('[data-milestone-id]').forEach(btn=>{
+    btn.onclick = ()=> deleteMilestone(btn.dataset.milestoneId);
+  });
+}
+
+async function addMilestone(){
+  const dateInput = document.getElementById('newMilestoneDate');
+  const labelInput = document.getElementById('newMilestoneLabel');
+  const date = dateInput.value.trim();
+  const label = labelInput.value.trim();
+  if(!date || !label){
+    showToast('⚠️ 日期跟目標名稱都要填');
+    return;
+  }
+  const id = `ms-${Date.now().toString().slice(-6)}`;
+  MILESTONES.push({ id, date, label });
+  showToast('新增中…');
+  await persistMilestones();
+  renderTimelinePage();
+  showToast(`已新增目標時程「${label}」，已同步到共用雲端`);
+}
+
+async function deleteMilestone(id){
+  const idx = MILESTONES.findIndex(m=>m.id===id);
+  if(idx === -1) return;
+  const m = MILESTONES[idx];
+  if(!confirm(`確定要刪除目標時程「${m.label}」嗎？`)) return;
+  MILESTONES.splice(idx, 1);
+  showToast('刪除中…');
+  await persistMilestones();
+  renderTimelinePage();
+  showToast('已刪除目標時程，已同步到共用雲端');
 }
 
 function renderPersonalPanel(){
