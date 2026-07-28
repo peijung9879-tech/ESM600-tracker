@@ -99,7 +99,7 @@
   .status-pill.ok{ background:var(--teal-soft); color:var(--teal); }
   .status-pill.urgent{ background:var(--red-soft); color:var(--red); }
   .deadline{ font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
-  .followup{ font-size:12px; color:var(--ink-soft);}
+  .followup{ font-size:12px; color:var(--ink-soft); white-space:pre-wrap;}
   .progress-cell{
     min-height:160px; display:table-cell; vertical-align:top; background:#fbfaf7;
   }
@@ -174,7 +174,7 @@
   .timeline-legend span{ display:inline-flex; align-items:center; gap:5px; }
   .timeline-page{ overflow-x:auto; padding-bottom:12px; }
   .timeline-axis-track{
-    display:flex; gap:0; position:relative; padding-top:16px; min-width:max-content;
+    display:flex; gap:0; position:relative; padding-top:34px; min-width:max-content;
   }
   .timeline-axis-track::before{
     content:''; position:absolute; top:15px; left:0; right:0; height:2px; background:var(--line);
@@ -219,16 +219,21 @@
     padding:14px 16px; margin-bottom:16px;
   }
   .milestone-manager-title{ font-size:12.5px; font-weight:700; color:#8a5a1e; margin-bottom:10px; }
-  .milestone-chip-list{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
-  .milestone-chip{
-    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
-    background:#fff; border:1px solid #E8CFA3; color:#8a5a1e; border-radius:20px; padding:5px 8px 5px 12px;
+  .milestone-table{ width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; }
+  .milestone-table th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:#8a5a1e;
+    padding:6px 12px; border-bottom:1px solid #E8CFA3; font-weight:700;
   }
-  .milestone-chip-delete{
-    background:none; border:none; cursor:pointer; font-size:14px; color:#c0433a; line-height:1;
-    padding:0 4px;
+  .milestone-table td{ padding:8px 12px; font-size:13px; color:var(--ink); border-bottom:1px solid #F0E2C8; }
+  .milestone-table tr:last-child td{ border-bottom:none; }
+  .milestone-editable{ cursor:text; border-bottom:1px dashed #D9A441; }
+  .milestone-editable:hover{ background:#FBF3E4; }
+  .milestone-editable:focus{ outline:2px solid #D9A441; outline-offset:1px; background:#fff; }
+  .milestone-delete-btn{
+    background:none; border:none; cursor:pointer; font-size:14px; padding:2px 6px; opacity:.6; border-radius:6px;
   }
-  .milestone-empty{ font-size:12px; color:var(--ink-soft); font-style:italic; }
+  .milestone-delete-btn:hover{ opacity:1; background:var(--red-soft); }
+  .milestone-empty{ font-size:12px; color:var(--ink-soft); font-style:italic; margin-bottom:8px; }
   .milestone-form-grid{ display:flex; gap:8px; flex-wrap:wrap; }
   .milestone-date-input{ width:190px; flex:0 0 auto; }
 
@@ -242,7 +247,9 @@
   }
   .milestone-delete-btn:hover{ opacity:1; }
   .timeline-milestone-marker{
-    position:absolute; top:-22px; left:50%; transform:translateX(-50%); font-size:15px; z-index:2;
+    position:absolute; top:-24px; left:50%; transform:translateX(-50%); z-index:2;
+    font-size:11px; font-weight:700; color:#8a5a1e; background:#FBF3E4; border:1px solid #D9A441;
+    border-radius:20px; padding:2px 8px; white-space:nowrap;
   }
   .timeline-col.has-milestone .timeline-col-dot{
     background:#D9A441; box-shadow:0 0 0 2px #D9A441;
@@ -969,6 +976,41 @@ async function handleFieldChange(id, field, oldRaw, newRaw){
   if(oldRaw === newRaw) return;
   const entry = DATA.find(d=>d.id===id);
   if(!entry) return;
+
+  // 負責人欄位如果打了多個名字，自動拆成各自獨立的任務（複製其他欄位，各自可編輯）
+  if(field === 'followup'){
+    const names = [...new Set(newRaw.split(/[、,，]/).map(s=>s.trim()).filter(Boolean))];
+    if(names.length > 1){
+      entry.followup = names[0];
+      names.slice(1).forEach(name=>{
+        const newId = `${entry.partId}::${name}`;
+        if(DATA.some(d=>d.id===newId)) return; // 避免重複建立
+        DATA.push({
+          id: newId,
+          partId: entry.partId,
+          name: entry.name,
+          appearance: entry.appearance || '',
+          status: entry.status,
+          deadline: entry.deadline,
+          followup: name,
+          note: entry.note,
+          progress: entry.progress || ''
+        });
+      });
+      HISTORY.unshift({
+        id, partId: entry.partId, name: entry.name, assignee: entry.followup, field,
+        oldVal: oldRaw || '(空白)', newVal: `拆成獨立任務：${names.join('、')}`,
+        time: new Date().toLocaleString('zh-TW', {hour12:false})
+      });
+      showToast('拆分中…');
+      await Promise.all([persistData(), persistHistory()]);
+      renderHistoryList();
+      renderAll();
+      showToast(`已拆成 ${names.length} 個獨立任務，已同步到共用雲端`);
+      return;
+    }
+  }
+
   entry[field] = newRaw;
   const displayOld = field === 'status' ? statusLabel(oldRaw) : (oldRaw || '(空白)');
   const displayNew = field === 'status' ? statusLabel(newRaw) : (newRaw || '(空白)');
@@ -990,6 +1032,7 @@ async function handleFieldChange(id, field, oldRaw, newRaw){
 }
 
 function attachEditHandlers(){
+  const MULTILINE_FIELDS = ['note', 'progress'];
   document.querySelectorAll('.editable').forEach(cell=>{
     cell.addEventListener('blur', (e)=>{
       const id = e.target.dataset.id;
@@ -997,11 +1040,14 @@ function attachEditHandlers(){
       const entry = DATA.find(d=>d.id===id);
       if(!entry) return;
       const oldVal = entry[field] || "";
-      const newVal = e.target.textContent.trim();
+      const newVal = (e.target.innerText !== undefined ? e.target.innerText : e.target.textContent).trim();
       handleFieldChange(id, field, oldVal, newVal);
     });
     cell.addEventListener('keydown', (e)=>{
-      if(e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+      if(e.key === 'Enter' && !MULTILINE_FIELDS.includes(e.target.dataset.field)){
+        e.preventDefault(); e.target.blur();
+      }
+      // 備註／現況欄位：Enter 直接換行，不送出；改用 Shift+Enter 或點旁邊來確認送出
     });
   });
   document.querySelectorAll('.status-select').forEach(sel=>{
@@ -1240,7 +1286,7 @@ function renderTimelinePage(){
     const hasMilestone = milestones && milestones.length;
     return `
       <div class="timeline-col ${cls} ${hasMilestone ? 'has-milestone' : ''}">
-        ${hasMilestone ? '<div class="timeline-milestone-marker">🎯</div>' : ''}
+        ${hasMilestone ? `<div class="timeline-milestone-marker">🎯 ${dateLabel}</div>` : ''}
         <div class="timeline-col-dot"></div>
         <div class="timeline-col-date">${dateLabel}</div>
         <div class="timeline-col-count">${groups.length} 項</div>
@@ -1264,15 +1310,25 @@ function renderTimelinePage(){
     columnsHtml += columnHtml('nodate', '日期待確認', [], milestoneNoDate);
   }
 
-  const milestoneChips = MILESTONES.length
-    ? MILESTONES.map(m => `<span class="milestone-chip">🎯 ${m.date}．${m.label}<button class="milestone-chip-delete" data-milestone-id="${m.id}">×</button></span>`).join('')
-    : `<span class="milestone-empty">目前還沒有設定任何目標時程</span>`;
+  const milestoneTable = MILESTONES.length
+    ? `<table class="milestone-table">
+        <thead><tr><th style="width:150px">日期</th><th>目標名稱</th><th style="width:36px"></th></tr></thead>
+        <tbody>
+          ${MILESTONES.map(m => `
+            <tr>
+              <td class="editable milestone-editable" contenteditable="true" spellcheck="false" data-milestone-id="${m.id}" data-mfield="date">${m.date}</td>
+              <td class="editable milestone-editable" contenteditable="true" spellcheck="false" data-milestone-id="${m.id}" data-mfield="label">${m.label}</td>
+              <td><button class="milestone-delete-btn" data-milestone-id="${m.id}" title="刪除這個目標時程">🗑</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`
+    : `<div class="milestone-empty">目前還沒有設定任何目標時程</div>`;
 
   const milestoneManagerHtml = `
     <div class="milestone-manager">
-      <div class="milestone-manager-title">🎯 主要目標時程（大家共用，任何人都能新增/修改）</div>
-      <div class="milestone-chip-list">${milestoneChips}</div>
-      <button class="save-btn" id="addMilestoneBtn">＋ 新增目標時程</button>
+      <div class="milestone-manager-title">🎯 主要目標時程（大家共用，日期跟名稱都可以直接點來改）</div>
+      ${milestoneTable}
+      <button class="save-btn" id="addMilestoneBtn" style="margin-top:10px;">＋ 新增目標時程</button>
       <div id="addMilestoneForm" style="display:none; margin-top:10px;">
         <div class="milestone-form-grid">
           <input type="text" id="newMilestoneDate" placeholder="日期 *（例：8月22日）" class="add-item-input milestone-date-input">
@@ -1335,9 +1391,28 @@ function attachMilestoneHandlers(){
   if(confirmBtn){
     confirmBtn.onclick = addMilestone;
   }
-  document.querySelectorAll('[data-milestone-id]').forEach(btn=>{
+  document.querySelectorAll('.milestone-delete-btn').forEach(btn=>{
     btn.onclick = ()=> deleteMilestone(btn.dataset.milestoneId);
   });
+  document.querySelectorAll('.milestone-editable').forEach(cell=>{
+    cell.addEventListener('blur', (e)=>{
+      updateMilestoneField(e.target.dataset.milestoneId, e.target.dataset.mfield, e.target.textContent.trim());
+    });
+    cell.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+    });
+  });
+}
+
+async function updateMilestoneField(id, field, newVal){
+  const m = MILESTONES.find(x=>x.id===id);
+  if(!m) return;
+  if(m[field] === newVal) return;
+  m[field] = newVal;
+  showToast('儲存中…');
+  await persistMilestones();
+  showToast('已更新目標時程，已同步到共用雲端');
+  renderTimelinePage();
 }
 
 async function addMilestone(){
