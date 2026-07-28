@@ -174,7 +174,7 @@
   .timeline-legend span{ display:inline-flex; align-items:center; gap:5px; }
   .timeline-page{ overflow-x:auto; padding-bottom:12px; }
   .timeline-axis-track{
-    display:flex; gap:0; position:relative; padding-top:34px; min-width:max-content;
+    display:flex; gap:0; position:relative; padding-top:16px; min-width:max-content;
   }
   .timeline-axis-track::before{
     content:''; position:absolute; top:15px; left:0; right:0; height:2px; background:var(--line);
@@ -237,20 +237,19 @@
   .milestone-form-grid{ display:flex; gap:8px; flex-wrap:wrap; }
   .milestone-date-input{ width:190px; flex:0 0 auto; }
 
-  .timeline-milestone-card{
+  .timeline-big-node{
     background:#FBF3E4; border:1.5px solid #D9A441; border-radius:8px;
-    padding:9px 10px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:6px;
+    padding:10px 12px; margin:8px 0 10px;
   }
-  .timeline-milestone-label{ font-size:12px; font-weight:700; color:#8a5a1e; line-height:1.3; }
+  .timeline-big-node-date{ font-size:16px; font-weight:800; color:#8a5a1e; font-family:var(--mono); margin-bottom:4px; }
+  .timeline-big-node-label{
+    display:flex; align-items:center; justify-content:space-between; gap:6px;
+    font-size:12px; font-weight:600; color:#8a5a1e; line-height:1.35; padding:2px 0;
+  }
   .milestone-delete-btn{
     background:none; border:none; cursor:pointer; font-size:13px; padding:2px 4px; opacity:.6; flex:0 0 auto;
   }
   .milestone-delete-btn:hover{ opacity:1; }
-  .timeline-milestone-marker{
-    position:absolute; top:-24px; left:50%; transform:translateX(-50%); z-index:2;
-    font-size:11px; font-weight:700; color:#8a5a1e; background:#FBF3E4; border:1px solid #D9A441;
-    border-radius:20px; padding:2px 8px; white-space:nowrap;
-  }
   .timeline-col.has-milestone .timeline-col-dot{
     background:#D9A441; box-shadow:0 0 0 2px #D9A441;
   }
@@ -681,6 +680,10 @@ async function initData(){
   }catch(err){
     MILESTONES = [];
   }
+  const didSplit = splitAllCombinedFollowupTasks();
+  if(didSplit){
+    await persistData();
+  }
   loadingEl.style.display = 'none';
   const urlOwner = new URLSearchParams(window.location.search).get('owner');
   if(urlOwner){
@@ -688,6 +691,35 @@ async function initData(){
     currentView = 'owner';
   }
   renderAll();
+}
+
+function splitAllCombinedFollowupTasks(){
+  let changed = false;
+  const toAdd = [];
+  DATA.forEach(entry=>{
+    const names = [...new Set((entry.followup||'').split(/[、,，]/).map(s=>s.trim()).filter(Boolean))];
+    if(names.length > 1){
+      changed = true;
+      entry.followup = names[0];
+      names.slice(1).forEach(name=>{
+        const newId = `${entry.partId}::${name}`;
+        if(DATA.some(d=>d.id===newId) || toAdd.some(d=>d.id===newId)) return;
+        toAdd.push({
+          id: newId,
+          partId: entry.partId,
+          name: entry.name,
+          appearance: entry.appearance || '',
+          status: entry.status,
+          deadline: entry.deadline,
+          followup: name,
+          note: entry.note,
+          progress: entry.progress || ''
+        });
+      });
+    }
+  });
+  if(toAdd.length) DATA.push(...toAdd);
+  return changed;
 }
 
 async function persistMilestones(){
@@ -1266,29 +1298,31 @@ function renderTimelinePage(){
       </div>
     </div>`;
 
-  const milestoneCard = (m) => `
-    <div class="timeline-milestone-card">
-      <div class="timeline-milestone-label">🎯 ${m.label}</div>
-      <button class="milestone-delete-btn" data-milestone-id="${m.id}" title="刪除這個目標時程">🗑</button>
-    </div>`;
-
   const columnHtml = (cls, dateLabel, groups, milestones) => {
     colIdx++;
     const cid = `tlcol-${colIdx}`;
     const shown = groups.slice(0, THUMB_LIMIT);
     const rest = groups.slice(THUMB_LIMIT);
-    const msHtml = (milestones || []).map(milestoneCard).join('');
-    let inner = msHtml + shown.map(itemCard).join('');
+    let inner = shown.map(itemCard).join('');
     if(rest.length){
       inner += `<div class="timeline-more-btn" data-target="${cid}">▾ 還有 ${rest.length} 項</div>`;
       inner += `<div class="timeline-more-list" id="${cid}" style="display:none;">${rest.map(itemCard).join('')}</div>`;
     }
     const hasMilestone = milestones && milestones.length;
+    const bigNodeHtml = hasMilestone ? `
+      <div class="timeline-big-node">
+        <div class="timeline-big-node-date">🎯 ${dateLabel}</div>
+        ${milestones.map(m => `
+          <div class="timeline-big-node-label">
+            <span>${m.label}</span>
+            <button class="milestone-delete-btn" data-milestone-id="${m.id}" title="刪除這個目標時程">🗑</button>
+          </div>`).join('')}
+      </div>` : '';
     return `
       <div class="timeline-col ${cls} ${hasMilestone ? 'has-milestone' : ''}">
-        ${hasMilestone ? `<div class="timeline-milestone-marker">🎯 ${dateLabel}</div>` : ''}
         <div class="timeline-col-dot"></div>
         <div class="timeline-col-date">${dateLabel}</div>
+        ${bigNodeHtml}
         <div class="timeline-col-count">${groups.length} 項</div>
         <div class="timeline-col-items">${inner}</div>
       </div>`;
