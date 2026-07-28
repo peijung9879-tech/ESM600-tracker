@@ -237,9 +237,16 @@
   .milestone-form-grid{ display:flex; gap:8px; flex-wrap:wrap; }
   .milestone-date-input{ width:190px; flex:0 0 auto; }
 
+  .timeline-milestone-row{
+    display:flex; gap:0; min-width:max-content;
+  }
+  .timeline-milestone-slot{
+    width:190px; flex:0 0 190px; padding:0 14px;
+  }
+  .timeline-milestone-slot.has-milestone{ padding-bottom:6px; }
   .timeline-big-node{
     background:#FBF3E4; border:1.5px solid #D9A441; border-radius:8px;
-    padding:10px 12px; margin:8px 0 10px;
+    padding:10px 12px; margin-bottom:6px;
   }
   .timeline-big-node-date{ font-size:16px; font-weight:800; color:#8a5a1e; font-family:var(--mono); margin-bottom:4px; }
   .timeline-big-node-label{
@@ -492,6 +499,7 @@
 
   body.mobile-mode #timelineView{ margin-top:4px; }
   body.mobile-mode .timeline-col{ width:150px; flex:0 0 150px; padding:0 10px; }
+  body.mobile-mode .timeline-milestone-slot{ width:150px; flex:0 0 150px; padding:0 10px; }
   body.mobile-mode .timeline-item-name{ font-size:11.5px; }
   body.mobile-mode .timeline-legend{ font-size:10px; gap:10px; flex-wrap:wrap; }
 
@@ -1298,7 +1306,7 @@ function renderTimelinePage(){
       </div>
     </div>`;
 
-  const columnHtml = (cls, dateLabel, groups, milestones) => {
+  const columnHtml = (cls, dateLabel, groups) => {
     colIdx++;
     const cid = `tlcol-${colIdx}`;
     const shown = groups.slice(0, THUMB_LIMIT);
@@ -1308,40 +1316,50 @@ function renderTimelinePage(){
       inner += `<div class="timeline-more-btn" data-target="${cid}">▾ 還有 ${rest.length} 項</div>`;
       inner += `<div class="timeline-more-list" id="${cid}" style="display:none;">${rest.map(itemCard).join('')}</div>`;
     }
-    const hasMilestone = milestones && milestones.length;
-    const bigNodeHtml = hasMilestone ? `
-      <div class="timeline-big-node">
-        <div class="timeline-big-node-date">🎯 ${dateLabel}</div>
-        ${milestones.map(m => `
-          <div class="timeline-big-node-label">
-            <span>${m.label}</span>
-            <button class="milestone-delete-btn" data-milestone-id="${m.id}" title="刪除這個目標時程">🗑</button>
-          </div>`).join('')}
-      </div>` : '';
     return `
-      <div class="timeline-col ${cls} ${hasMilestone ? 'has-milestone' : ''}">
+      <div class="timeline-col ${cls}">
         <div class="timeline-col-dot"></div>
         <div class="timeline-col-date">${dateLabel}</div>
-        ${bigNodeHtml}
         <div class="timeline-col-count">${groups.length} 項</div>
         <div class="timeline-col-items">${inner}</div>
       </div>`;
   };
 
+  // 上排「重要節點時間軸」跟下排日期欄位，用同一組 dateOrder、同樣寬度的格子對齊
+  const milestoneSlotHtml = (milestones) => {
+    if(!milestones || !milestones.length){
+      return `<div class="timeline-milestone-slot"></div>`;
+    }
+    return `<div class="timeline-milestone-slot has-milestone">
+      ${milestones.map(m => `
+        <div class="timeline-big-node">
+          <div class="timeline-big-node-date">🎯 ${m.date}</div>
+          <div class="timeline-big-node-label">
+            <span>${m.label}</span>
+            <button class="milestone-delete-btn" data-milestone-id="${m.id}" title="刪除這個目標時程">🗑</button>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  };
+
   let columnsHtml = '';
+  let milestoneRowHtml = '';
   dateOrder.forEach(key=>{
     const bucket = dateMap[key];
     const isOverdue = bucket.date < now;
     const isSoon = !isOverdue && (bucket.date - now) <= 7*86400000;
     const cls = isOverdue ? 'overdue' : (isSoon ? 'soon' : 'later');
     const groups = groupTimelineColumn(bucket.tasks);
-    columnsHtml += columnHtml(cls, fmtShort(bucket.date), groups, bucket.milestones);
+    columnsHtml += columnHtml(cls, fmtShort(bucket.date), groups);
+    milestoneRowHtml += milestoneSlotHtml(bucket.milestones);
   });
   if(noDates.length){
     const groups = groupTimelineColumn(noDates);
-    columnsHtml += columnHtml('nodate', '無日期', groups, milestoneNoDate);
+    columnsHtml += columnHtml('nodate', '無日期', groups);
+    milestoneRowHtml += milestoneSlotHtml(milestoneNoDate);
   } else if(milestoneNoDate.length){
-    columnsHtml += columnHtml('nodate', '日期待確認', [], milestoneNoDate);
+    columnsHtml += columnHtml('nodate', '日期待確認', []);
+    milestoneRowHtml += milestoneSlotHtml(milestoneNoDate);
   }
 
   const milestoneTable = MILESTONES.length
@@ -1387,9 +1405,10 @@ function renderTimelinePage(){
       <span><i class="dot" style="background:var(--amber)"></i>7天內到期</span>
       <span><i class="dot" style="background:var(--teal)"></i>之後</span>
       <span><i class="dot" style="background:var(--ink-soft)"></i>無日期</span>
-      <span>🎯 目標時程節點</span>
+      <span>🎯 重要節點時間軸</span>
     </div>
     <div class="timeline-page">
+      ${milestoneRowHtml.includes('has-milestone') ? `<div class="timeline-milestone-row">${milestoneRowHtml}</div>` : ''}
       <div class="timeline-axis-track">${columnsHtml}</div>
     </div>
   `;
