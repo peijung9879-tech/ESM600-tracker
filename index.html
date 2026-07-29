@@ -204,6 +204,10 @@
     background:var(--panel); border:1px solid var(--line); border-radius:8px;
     padding:9px 10px; margin-bottom:8px;
   }
+  .timeline-item-card.id-tag{
+    background:var(--blue-soft); border-color:var(--blue);
+  }
+  .timeline-item-card.id-tag .timeline-item-name{ color:var(--blue); }
   .timeline-item-name{ font-size:12.5px; font-weight:700; color:var(--ink); line-height:1.3; }
   .timeline-item-part{ font-family:var(--mono); font-size:10px; color:var(--ink-soft); }
   .timeline-item-meta{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; align-items:center; }
@@ -970,7 +974,7 @@ function renderOwnerView(){
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
               <td class="followup editable progress-cell" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
-              <td>${(i.partId.startsWith('新增') || i.partId.startsWith('自訂-')) ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
+              <td><button class="delete-item-btn" data-id="${i.id}" title="刪除這個項目">🗑</button></td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -1042,7 +1046,7 @@ function renderRawView(){
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
             <td class="followup editable progress-cell" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
-            <td>${(i.partId.startsWith('新增') || i.partId.startsWith('自訂-')) ? `<button class="delete-item-btn" data-id="${i.id}" title="刪除這個自訂項目">🗑</button>` : ''}</td>
+            <td><button class="delete-item-btn" data-id="${i.id}" title="刪除這個項目">🗑</button></td>
           </tr>`).join('')}
       </tbody>
     </table>
@@ -1152,7 +1156,7 @@ async function deleteTask(id){
   const idx = DATA.findIndex(d=>d.id===id);
   if(idx === -1) return;
   const entry = DATA[idx];
-  if(!confirm(`確定要刪除「${entry.name}」這個自訂項目嗎？這個動作無法復原。`)) return;
+  if(!confirm(`確定要刪除「${entry.name}」（${entry.followup || '未指派'}）這一筆嗎？這個動作無法復原。`)) return;
   DATA.splice(idx, 1);
   HISTORY.unshift({
     id: entry.id, partId: entry.partId, name: entry.name, assignee: entry.followup, field: 'delete',
@@ -1307,7 +1311,7 @@ function renderTimelinePage(){
   now.setHours(0,0,0,0);
   const withDates = [];
   const noDates = [];
-  DATA.forEach(d=>{
+  DATA.filter(d => d.status !== 'ok').forEach(d=>{
     const date = parseDeadline(d.deadline);
     if(date) withDates.push({ task: d, date });
     else if(d.deadline) noDates.push(d);
@@ -1339,7 +1343,7 @@ function renderTimelinePage(){
   let colIdx = 0;
 
   const itemCard = (g) => `
-    <div class="timeline-item-card">
+    <div class="timeline-item-card ${g.name.startsWith('ID-') ? 'id-tag' : ''}">
       <div class="timeline-item-name">${g.name}</div>
       <div class="timeline-item-meta">
         <span class="timeline-item-part">${g.partId}</span>
@@ -1584,13 +1588,16 @@ function renderPersonalPanel(){
   document.getElementById('confirmAddItemBtn').onclick = addPersonalItem;
 }
 
-function nextCustomPartId(){
+function nextCustomPartId(person){
+  const prefix = person ? `新增` : '新增';
+  const suffix = person ? `-${person}` : '';
+  const pattern = person ? new RegExp(`^新增(\\d+)-${person}$`) : /^新增(\d+)$/;
   const nums = DATA
     .map(d => d.partId)
-    .filter(pid => /^新增\d+$/.test(pid))
-    .map(pid => parseInt(pid.replace('新增', ''), 10));
+    .map(pid => { const m = pid.match(pattern); return m ? parseInt(m[1], 10) : null; })
+    .filter(n => n !== null);
   const maxNum = nums.length ? Math.max(...nums) : 0;
-  return `新增${maxNum + 1}`;
+  return `新增${maxNum + 1}${suffix}`;
 }
 
 async function addPersonalItem(){
@@ -1605,7 +1612,7 @@ async function addPersonalItem(){
   }
   const deadline = deadlineInput.value.trim();
   const note = noteInput.value.trim();
-  const partId = nextCustomPartId();
+  const partId = nextCustomPartId(activeOwner);
   const newTask = {
     id: `${partId}::${activeOwner}`,
     partId,
