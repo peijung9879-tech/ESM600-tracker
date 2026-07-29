@@ -315,6 +315,15 @@
     padding:8px 10px; background:#fff; color:var(--ink);
   }
   .add-item-note{ grid-column:1 / -1; }
+  .add-item-field{ margin-bottom:14px; }
+  .add-item-field label{
+    display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:5px;
+  }
+  .add-item-input-full{
+    width:100%; font-family:var(--sans); font-size:13.5px; border:1px solid var(--line); border-radius:6px;
+    padding:9px 11px; background:#fff; color:var(--ink); box-sizing:border-box;
+  }
+  .add-item-input-full:focus{ outline:2px solid var(--teal); outline-offset:1px; }
   .delete-item-btn{
     background:none; border:none; cursor:pointer; font-size:15px; padding:2px 6px;
     border-radius:6px; opacity:.6; transition:opacity .15s, background .15s;
@@ -572,6 +581,7 @@
           <option value="ok">已確認</option>
         </select>
       </div>
+      <button class="save-btn" id="globalAddItemBtn">＋ 新增項目/人員</button>
       <button class="history-btn" id="historyBtn">📜 編輯歷史</button>
       <button class="save-btn" id="exportBtn">匯出目前資料 (CSV)</button>
       <button class="save-btn" id="tvModeBtn">📺 電視模式</button>
@@ -595,6 +605,37 @@
       <button class="history-close" id="historyClose">×</button>
     </div>
     <div class="history-list" id="historyList"></div>
+  </div>
+</div>
+
+<div class="history-overlay" id="addItemOverlay">
+  <div class="history-modal" style="max-width:520px;">
+    <div class="history-modal-head">
+      <h2>新增項目</h2>
+      <button class="history-close" id="addItemOverlayClose">×</button>
+    </div>
+    <div style="padding:20px;">
+      <div class="add-item-field">
+        <label>品名 *</label>
+        <input type="text" id="globalNewItemName" class="add-item-input-full" placeholder="例：後視鏡固定座">
+      </div>
+      <div class="add-item-field">
+        <label>負責人 *（可打多個名字，用頓號分隔，也可以直接打一個新名字新增這個人）</label>
+        <input type="text" id="globalNewItemFollowup" class="add-item-input-full" placeholder="例：Cloud、姝涵">
+      </div>
+      <div class="add-item-field">
+        <label>期限（選填，格式例：8月5日）</label>
+        <input type="text" id="globalNewItemDeadline" class="add-item-input-full" placeholder="8月5日">
+      </div>
+      <div class="add-item-field">
+        <label>備註（選填）</label>
+        <input type="text" id="globalNewItemNote" class="add-item-input-full" placeholder="">
+      </div>
+      <div style="margin-top:14px; display:flex; gap:8px; justify-content:flex-end;">
+        <button class="history-btn" id="cancelGlobalAddItemBtn">取消</button>
+        <button class="save-btn" id="confirmGlobalAddItemBtn">確認新增</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1587,6 +1628,67 @@ async function addPersonalItem(){
   renderAll();
   showToast(`已新增「${name}」，已同步到共用雲端`);
 }
+
+async function confirmGlobalAddItem(){
+  const nameInput = document.getElementById('globalNewItemName');
+  const followupInput = document.getElementById('globalNewItemFollowup');
+  const deadlineInput = document.getElementById('globalNewItemDeadline');
+  const noteInput = document.getElementById('globalNewItemNote');
+  const name = nameInput.value.trim();
+  const followupRaw = followupInput.value.trim();
+  if(!name){
+    nameInput.focus();
+    showToast('⚠️ 品名不能空白');
+    return;
+  }
+  const names = [...new Set(followupRaw.split(/[、,，]/).map(s=>s.trim()).filter(Boolean))];
+  if(!names.length){
+    followupInput.focus();
+    showToast('⚠️ 至少要填一位負責人');
+    return;
+  }
+  const deadline = deadlineInput.value.trim();
+  const note = noteInput.value.trim();
+  const partId = nextCustomPartId();
+  const newTasks = names.map(person => ({
+    id: `${partId}::${person}`,
+    partId,
+    name,
+    status: 'pending',
+    deadline,
+    followup: person,
+    note,
+    progress: ''
+  }));
+  DATA.push(...newTasks);
+  HISTORY.unshift({
+    id: newTasks[0].id, partId, name, assignee: names.join('、'), field: 'new',
+    oldVal: '(不存在)', newVal: `新增項目：${name}（${names.join('、')}）`,
+    time: new Date().toLocaleString('zh-TW', {hour12:false})
+  });
+  showToast('新增中…');
+  await Promise.all([persistData(), persistHistory()]);
+  renderHistoryList();
+  renderAll();
+  nameInput.value = ''; followupInput.value = ''; deadlineInput.value = ''; noteInput.value = '';
+  document.getElementById('addItemOverlay').classList.remove('show');
+  showToast(`已新增「${name}」給 ${names.length} 位負責人，已同步到共用雲端`);
+}
+
+document.getElementById('globalAddItemBtn').onclick = ()=>{
+  document.getElementById('addItemOverlay').classList.add('show');
+  document.getElementById('globalNewItemName').focus();
+};
+document.getElementById('addItemOverlayClose').onclick = ()=>{
+  document.getElementById('addItemOverlay').classList.remove('show');
+};
+document.getElementById('cancelGlobalAddItemBtn').onclick = ()=>{
+  document.getElementById('addItemOverlay').classList.remove('show');
+};
+document.getElementById('confirmGlobalAddItemBtn').onclick = confirmGlobalAddItem;
+document.getElementById('addItemOverlay').onclick = (e)=>{
+  if(e.target.id === 'addItemOverlay') e.target.classList.remove('show');
+};
 
 function renderDashboard(){
   const owners = {};
