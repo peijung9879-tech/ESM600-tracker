@@ -219,20 +219,28 @@
 
   /* --- 主要目標時程 --- */
   .milestone-manager{
-    background:var(--amberSoft, #FBEEDD); background:#FBF3E4; border:1px solid #E8CFA3; border-radius:10px;
+    background:var(--blue-soft); border:1px solid #b9cbe8; border-radius:10px;
     padding:14px 16px; margin-bottom:16px;
   }
-  .milestone-manager-title{ font-size:12.5px; font-weight:700; color:#8a5a1e; margin-bottom:10px; }
+  .milestone-manager-head{
+    display:flex; align-items:center; justify-content:space-between; cursor:pointer; margin-bottom:10px;
+  }
+  .milestone-manager-title{ font-size:12.5px; font-weight:700; color:var(--blue); margin:0; }
+  .milestone-manager-toggle{
+    font-size:11px; font-weight:700; color:var(--blue); background:#fff; border:1px solid #b9cbe8;
+    border-radius:20px; padding:3px 10px; white-space:nowrap;
+  }
+  .milestone-manager-body.collapsed{ display:none; }
   .milestone-table{ width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; }
   .milestone-table th{
-    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:#8a5a1e;
-    padding:6px 12px; border-bottom:1px solid #E8CFA3; font-weight:700;
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--blue);
+    padding:6px 12px; border-bottom:1px solid #b9cbe8; font-weight:700;
   }
-  .milestone-table td{ padding:8px 12px; font-size:13px; color:var(--ink); border-bottom:1px solid #F0E2C8; }
+  .milestone-table td{ padding:8px 12px; font-size:13px; color:var(--ink); border-bottom:1px solid #dce6f5; }
   .milestone-table tr:last-child td{ border-bottom:none; }
-  .milestone-editable{ cursor:text; border-bottom:1px dashed #D9A441; }
-  .milestone-editable:hover{ background:#FBF3E4; }
-  .milestone-editable:focus{ outline:2px solid #D9A441; outline-offset:1px; background:#fff; }
+  .milestone-editable{ cursor:text; border-bottom:1px dashed var(--blue); }
+  .milestone-editable:hover{ background:var(--blue-soft); }
+  .milestone-editable:focus{ outline:2px solid var(--blue); outline-offset:1px; background:#fff; }
   .milestone-delete-btn{
     background:none; border:none; cursor:pointer; font-size:14px; padding:2px 6px; opacity:.6; border-radius:6px;
   }
@@ -249,20 +257,16 @@
   }
   .timeline-milestone-slot.has-milestone{ padding-bottom:6px; }
   .timeline-big-node{
-    background:#FBF3E4; border:1.5px solid #D9A441; border-radius:8px;
+    background:var(--blue-soft); border:1.5px solid var(--blue); border-radius:8px;
     padding:10px 12px; margin-bottom:6px;
   }
-  .timeline-big-node-date{ font-size:16px; font-weight:800; color:#8a5a1e; font-family:var(--mono); margin-bottom:4px; }
+  .timeline-big-node-date{ font-size:16px; font-weight:800; color:var(--blue); font-family:var(--mono); margin-bottom:4px; }
   .timeline-big-node-label{
     display:flex; align-items:center; justify-content:space-between; gap:6px;
-    font-size:12px; font-weight:600; color:#8a5a1e; line-height:1.35; padding:2px 0;
+    font-size:12px; font-weight:600; color:var(--blue); line-height:1.35; padding:2px 0;
   }
-  .milestone-delete-btn{
-    background:none; border:none; cursor:pointer; font-size:13px; padding:2px 4px; opacity:.6; flex:0 0 auto;
-  }
-  .milestone-delete-btn:hover{ opacity:1; }
   .timeline-col.has-milestone .timeline-col-dot{
-    background:#D9A441; box-shadow:0 0 0 2px #D9A441;
+    background:var(--blue); box-shadow:0 0 0 2px var(--blue);
   }
 
   .loading-screen{
@@ -696,6 +700,7 @@ function buildInitialTasks(){
 let DATA = [];
 let HISTORY = [];
 let MILESTONES = [];
+let milestoneManagerCollapsed = true;
 const STORAGE_KEY = 'tracker-current-v14';
 const HISTORY_KEY = 'tracker-history-v14';
 const MILESTONES_KEY = 'tracker-milestones-v1';
@@ -824,7 +829,7 @@ function applyMobilePage(){
     tlEl.style.display = currentView === 'timeline' ? 'block' : 'none';
   }
 }
-const PRIORITY_OWNERS = ["Cloud", "姝涵", "敬中", "星元", "嘉麟"];
+const PRIORITY_OWNERS = ["Cloud", "姝涵", "敬中", "星元", "嘉麟", "明勳"];
 
 function filteredData(){
   return DATA.filter(d => currentFilter === "all" || d.status === currentFilter);
@@ -1423,17 +1428,22 @@ function renderTimelinePage(){
 
   const milestoneManagerHtml = `
     <div class="milestone-manager">
-      <div class="milestone-manager-title">🎯 主要目標時程（大家共用，日期跟名稱都可以直接點來改）</div>
-      ${milestoneTable}
-      <button class="save-btn" id="addMilestoneBtn" style="margin-top:10px;">＋ 新增目標時程</button>
-      <div id="addMilestoneForm" style="display:none; margin-top:10px;">
-        <div class="milestone-form-grid">
-          <input type="text" id="newMilestoneDate" placeholder="日期 *（例：8月22日）" class="add-item-input milestone-date-input">
-          <input type="text" id="newMilestoneLabel" placeholder="目標名稱 *（例：整車輸出）" class="add-item-input" style="flex:1;">
-        </div>
-        <div style="margin-top:8px; display:flex; gap:8px;">
-          <button class="save-btn" id="confirmAddMilestoneBtn">確認新增</button>
-          <button class="history-btn" id="cancelAddMilestoneBtn">取消</button>
+      <div class="milestone-manager-head" id="milestoneManagerHead">
+        <div class="milestone-manager-title">🎯 主要目標時程（大家共用，共 ${MILESTONES.length} 項）</div>
+        <div class="milestone-manager-toggle" id="milestoneManagerToggle">${milestoneManagerCollapsed ? '▸ 展開' : '▾ 收合'}</div>
+      </div>
+      <div class="milestone-manager-body ${milestoneManagerCollapsed ? 'collapsed' : ''}" id="milestoneManagerBody">
+        ${milestoneTable}
+        <button class="save-btn" id="addMilestoneBtn" style="margin-top:10px;">＋ 新增目標時程</button>
+        <div id="addMilestoneForm" style="display:none; margin-top:10px;">
+          <div class="milestone-form-grid">
+            <input type="text" id="newMilestoneDate" placeholder="日期 *（例：8月22日）" class="add-item-input milestone-date-input">
+            <input type="text" id="newMilestoneLabel" placeholder="目標名稱 *（例：整車輸出）" class="add-item-input" style="flex:1;">
+          </div>
+          <div style="margin-top:8px; display:flex; gap:8px;">
+            <button class="save-btn" id="confirmAddMilestoneBtn">確認新增</button>
+            <button class="history-btn" id="cancelAddMilestoneBtn">取消</button>
+          </div>
         </div>
       </div>
     </div>`;
@@ -1469,6 +1479,13 @@ function renderTimelinePage(){
 }
 
 function attachMilestoneHandlers(){
+  const toggleHead = document.getElementById('milestoneManagerHead');
+  if(toggleHead){
+    toggleHead.onclick = ()=>{
+      milestoneManagerCollapsed = !milestoneManagerCollapsed;
+      renderTimelinePage();
+    };
+  }
   const addBtn = document.getElementById('addMilestoneBtn');
   const form = document.getElementById('addMilestoneForm');
   if(addBtn){
