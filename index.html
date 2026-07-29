@@ -219,28 +219,30 @@
 
   /* --- 主要目標時程 --- */
   .milestone-manager{
-    background:var(--blue-soft); border:1px solid #b9cbe8; border-radius:10px;
+    background:#FBF3E4; border:1px solid #E8CFA3; border-radius:10px;
     padding:14px 16px; margin-bottom:16px;
   }
   .milestone-manager-head{
     display:flex; align-items:center; justify-content:space-between; cursor:pointer; margin-bottom:10px;
   }
-  .milestone-manager-title{ font-size:12.5px; font-weight:700; color:var(--blue); margin:0; }
+  .milestone-manager-title{ font-size:12.5px; font-weight:700; color:#8a5a1e; margin:0; }
   .milestone-manager-toggle{
-    font-size:11px; font-weight:700; color:var(--blue); background:#fff; border:1px solid #b9cbe8;
+    font-size:11px; font-weight:700; color:#8a5a1e; background:#fff; border:1px solid #E8CFA3;
     border-radius:20px; padding:3px 10px; white-space:nowrap;
   }
   .milestone-manager-body.collapsed{ display:none; }
   .milestone-table{ width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; }
   .milestone-table th{
-    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--blue);
-    padding:6px 12px; border-bottom:1px solid #b9cbe8; font-weight:700;
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:#8a5a1e;
+    padding:6px 12px; border-bottom:1px solid #E8CFA3; font-weight:700;
   }
-  .milestone-table td{ padding:8px 12px; font-size:13px; color:var(--ink); border-bottom:1px solid #dce6f5; }
+  .milestone-table td{ padding:8px 12px; font-size:13px; color:var(--ink); border-bottom:1px solid #F0E2C8; }
   .milestone-table tr:last-child td{ border-bottom:none; }
-  .milestone-editable{ cursor:text; border-bottom:1px dashed var(--blue); }
-  .milestone-editable:hover{ background:var(--blue-soft); }
-  .milestone-editable:focus{ outline:2px solid var(--blue); outline-offset:1px; background:#fff; }
+  .milestone-table tr.id-tag td{ background:var(--blue-soft); }
+  .milestone-table tr.id-tag .milestone-editable{ border-bottom-color:var(--blue); }
+  .milestone-editable{ cursor:text; border-bottom:1px dashed #D9A441; }
+  .milestone-editable:hover{ background:#FBF3E4; }
+  .milestone-editable:focus{ outline:2px solid #D9A441; outline-offset:1px; background:#fff; }
   .milestone-delete-btn{
     background:none; border:none; cursor:pointer; font-size:14px; padding:2px 6px; opacity:.6; border-radius:6px;
   }
@@ -257,16 +259,19 @@
   }
   .timeline-milestone-slot.has-milestone{ padding-bottom:6px; }
   .timeline-big-node{
-    background:var(--blue-soft); border:1.5px solid var(--blue); border-radius:8px;
+    background:#FBF3E4; border:1.5px solid #D9A441; border-radius:8px;
     padding:10px 12px; margin-bottom:6px;
   }
-  .timeline-big-node-date{ font-size:16px; font-weight:800; color:var(--blue); font-family:var(--mono); margin-bottom:4px; }
+  .timeline-big-node-date{ font-size:16px; font-weight:800; color:#8a5a1e; font-family:var(--mono); margin-bottom:4px; }
   .timeline-big-node-label{
     display:flex; align-items:center; justify-content:space-between; gap:6px;
-    font-size:12px; font-weight:600; color:var(--blue); line-height:1.35; padding:2px 0;
+    font-size:12px; font-weight:600; color:#8a5a1e; line-height:1.35; padding:2px 0;
   }
+  .timeline-big-node.id-tag{ background:var(--blue-soft); border-color:var(--blue); }
+  .timeline-big-node.id-tag .timeline-big-node-date,
+  .timeline-big-node.id-tag .timeline-big-node-label{ color:var(--blue); }
   .timeline-col.has-milestone .timeline-col-dot{
-    background:var(--blue); box-shadow:0 0 0 2px var(--blue);
+    background:#D9A441; box-shadow:0 0 0 2px #D9A441;
   }
 
   .loading-screen{
@@ -1382,7 +1387,7 @@ function renderTimelinePage(){
     }
     return `<div class="timeline-milestone-slot has-milestone">
       ${milestones.map(m => `
-        <div class="timeline-big-node">
+        <div class="timeline-big-node ${m.label.startsWith('ID-') ? 'id-tag' : ''}">
           <div class="timeline-big-node-date">🎯 ${m.date}</div>
           <div class="timeline-big-node-label">
             <span>${m.label}</span>
@@ -1417,7 +1422,7 @@ function renderTimelinePage(){
         <thead><tr><th style="width:150px">日期</th><th>目標名稱</th><th style="width:36px"></th></tr></thead>
         <tbody>
           ${MILESTONES.map(m => `
-            <tr>
+            <tr class="${m.label.startsWith('ID-') ? 'id-tag' : ''}">
               <td class="editable milestone-editable" contenteditable="true" spellcheck="false" data-milestone-id="${m.id}" data-mfield="date">${m.date}</td>
               <td class="editable milestone-editable" contenteditable="true" spellcheck="false" data-milestone-id="${m.id}" data-mfield="label">${m.label}</td>
               <td><button class="milestone-delete-btn" data-milestone-id="${m.id}" title="刪除這個目標時程">🗑</button></td>
