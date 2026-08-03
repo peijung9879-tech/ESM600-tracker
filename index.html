@@ -862,6 +862,7 @@ function renderLoadBars(){
   const owners = {};
   DATA.forEach(d=>{
     getActionOwners(d).forEach(o=>{
+      if(DASHBOARD_EXCLUDED_OWNERS.includes(o)) return;
       if(!owners[o]) owners[o] = {ok:0,pending:0,urgent:0,inprogress:0,blocked:0,total:0,items:[]};
       owners[o][d.status] = (owners[o][d.status]||0)+1;
       owners[o].total++;
@@ -925,7 +926,9 @@ function setActiveOwner(name){
 function populatePersonalSelect(){
   const sel = document.getElementById('personalSelect');
   if(!sel) return;
-  const names = [...new Set(DATA.flatMap(d => getActionOwners(d)))].sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+  const names = [...new Set(DATA.flatMap(d => getActionOwners(d)))]
+    .filter(n => !DASHBOARD_EXCLUDED_OWNERS.includes(n))
+    .sort((a,b)=>a.localeCompare(b,'zh-Hant'));
   const current = sel.value;
   sel.innerHTML = `<option value="">— 顯示全部 —</option>` +
     names.map(n => `<option value="${n}">${n}</option>`).join('');
@@ -937,6 +940,7 @@ function renderOwnerView(){
   const owners = {};
   data.forEach(d=>{
     getActionOwners(d).forEach(o=>{
+      if(DASHBOARD_EXCLUDED_OWNERS.includes(o)) return;
       if(!owners[o]) owners[o] = [];
       owners[o].push(d);
     });
@@ -1722,10 +1726,13 @@ document.getElementById('addItemOverlay').onclick = (e)=>{
   if(e.target.id === 'addItemOverlay') e.target.classList.remove('show');
 };
 
+const DASHBOARD_EXCLUDED_OWNERS = ["Ryan"];
+
 function renderDashboard(){
   const owners = {};
   DATA.forEach(d=>{
     getActionOwners(d).forEach(o=>{
+      if(DASHBOARD_EXCLUDED_OWNERS.includes(o)) return;
       if(!owners[o]) owners[o] = [];
       owners[o].push(d);
     });
