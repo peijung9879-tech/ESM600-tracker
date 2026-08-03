@@ -443,12 +443,15 @@
   body.tv-mode h1{ font-size:28px; }
   .dash-card.featured{
     grid-column: span 2; padding:30px 34px; border-width:2px; border-color:var(--teal);
-    box-shadow:0 6px 22px rgba(31,122,112,.12);
+    box-shadow:0 6px 22px rgba(31,122,112,.12); height:360px; overflow:hidden;
   }
-  .dash-card.featured .dash-card-name{ font-size:58px; }
-  .dash-card.featured .dash-card-pct{ font-size:58px; }
+  .dash-card.featured .dash-card-name{ font-size:44px; }
+  .dash-card.featured .dash-card-pct{ font-size:44px; }
   .dash-card.featured .dash-progress-track{ height:18px; }
-  .dash-card.featured .dash-inprogress{ font-size:58px; padding:12px 16px; min-height:auto; }
+  .dash-card.featured .dash-inprogress{
+    font-size:20px; padding:12px 16px; min-height:auto; max-height:130px; overflow:hidden;
+    line-height:1.4;
+  }
   .dash-card.featured .dash-blocked{ font-size:16px; padding:12px 16px; }
   .dash-card.featured .dash-meta{ font-size:13px; }
   .dash-card.minor{ padding:10px 12px; opacity:.7; }
@@ -1746,14 +1749,18 @@ function renderDashboard(){
     const done = items.filter(i=>i.status==='ok').length;
     const pct = total ? Math.round(done/total*100) : 0;
     const inprog = items.filter(i=>i.status==='inprogress');
+    const isFeatured = tvMode && PRIORITY_OWNERS.includes(name);
+    const INPROG_SHOW_LIMIT = isFeatured ? 3 : Infinity;
+    const inprogNames = inprog.map(i=>`${i.partId}．${i.name}`);
+    const inprogShown = inprogNames.slice(0, INPROG_SHOW_LIMIT);
+    const inprogRest = inprogNames.length - inprogShown.length;
     const inprogHtml = inprog.length
-      ? `🔵 進行中：${inprog.map(i=>`${i.partId}．${i.name}`).join('、')}`
+      ? `🔵 進行中：${inprogShown.join('、')}${inprogRest > 0 ? `…等 ${inprogRest} 項` : ''}`
       : `目前沒有進行中的項目`;
     const blocked = items.filter(i=>i.status==='blocked');
     const blockedHtml = blocked.length
       ? `🟣 待前置完成：${blocked.length} 項`
       : '';
-    const isFeatured = tvMode && PRIORITY_OWNERS.includes(name);
     const isMinor = tvMode && !isFeatured;
     const sizeClass = isFeatured ? 'featured' : (isMinor ? 'minor' : '');
     return `<div class="dash-card ${sizeClass}" data-owner="${name}">
