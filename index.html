@@ -464,7 +464,7 @@
     line-height:1.4;
   }
   .dash-card.featured .dash-blocked{ font-size:16px; padding:12px 16px; }
-  .dash-card.featured .dash-next-due{ font-size:16px; padding:12px 16px; }
+  .dash-card.featured .dash-next-due{ font-size:16px; padding:12px 16px; max-height:110px; overflow:hidden; line-height:1.4; }
   .dash-card.featured .dash-meta{ font-size:13px; }
   .dash-card.minor{ padding:10px 12px; opacity:.7; }
   .dash-card.minor .dash-card-name{ font-size:12px; }
@@ -874,17 +874,17 @@ function getActionOwners(d){
   return names.length ? names : ["未指派"];
 }
 
-function getNextDeadlineItem(items){
+function getNextDeadlineItems(items, limit){
+  limit = limit || 3;
   const now = new Date();
   now.setHours(0,0,0,0);
   const withDates = items
     .filter(i => i.status !== 'ok')
     .map(i => ({ item: i, date: parseDeadline(i.deadline) }))
     .filter(x => x.date);
-  if(!withDates.length) return null;
+  if(!withDates.length) return [];
   withDates.sort((a,b) => a.date - b.date);
-  const top = withDates[0];
-  return { item: top.item, date: top.date, overdue: top.date < now };
+  return withDates.slice(0, limit).map(x => ({ item: x.item, date: x.date, overdue: x.date < now }));
 }
 
 function renderLoadBars(){
@@ -907,9 +907,9 @@ function renderLoadBars(){
     const inprogNote = inprogItems.length
       ? `<div class="load-inprogress-note">🔵 進行中 ${Math.round(pctProg)}%：${inprogItems.map(i=>`${i.partId}．${i.name}`).join('、')}</div>`
       : '';
-    const nextDue = getNextDeadlineItem(c.items);
-    const nextDueNote = nextDue
-      ? `<div class="load-next-due-note ${nextDue.overdue ? 'overdue' : ''}">${nextDue.overdue ? '🔴' : '📅'} 最近到期：${nextDue.date.getMonth()+1}/${nextDue.date.getDate()}．${nextDue.item.partId}．${nextDue.item.name}</div>`
+    const nextDueList = getNextDeadlineItems(c.items, 3);
+    const nextDueNote = nextDueList.length
+      ? `<div class="load-next-due-note ${nextDueList[0].overdue ? 'overdue' : ''}">${nextDueList[0].overdue ? '🔴' : '📅'} 最近到期：${nextDueList.map(n=>`${n.date.getMonth()+1}/${n.date.getDate()}．${n.item.partId}．${n.item.name}`).join('、')}</div>`
       : '';
     return `<div class="load-row-wrap">
       <div class="load-row">
@@ -1802,21 +1802,25 @@ function renderDashboard(){
     const blockedHtml = blocked.length
       ? `🟣 待前置完成：${blocked.length} 項`
       : '';
-    const nextDue = getNextDeadlineItem(items);
-    const nextDueHtml = nextDue
-      ? `${nextDue.overdue ? '🔴' : '📅'} 最近到期：${nextDue.date.getMonth()+1}/${nextDue.date.getDate()}．${nextDue.item.partId}．${nextDue.item.name}`
+    const nextDueList = getNextDeadlineItems(items, 3);
+    const nextDueHtml = nextDueList.length
+      ? `${nextDueList[0].overdue ? '🔴' : '📅'} 最近到期：${nextDueList.map(n=>`${n.date.getMonth()+1}/${n.date.getDate()}．${n.item.partId}．${n.item.name}`).join('、')}`
       : '';
     const isMinor = tvMode && !isFeatured;
     const sizeClass = isFeatured ? 'featured' : (isMinor ? 'minor' : '');
+    const nextDueBlock = nextDueList.length ? `<div class="dash-next-due ${nextDueList[0].overdue ? 'overdue' : ''}">${nextDueHtml}</div>` : '';
+    const inprogBlock = `<div class="dash-inprogress ${inprog.length ? '' : 'empty'}">${inprogHtml}</div>`;
+    const blockedBlock = blocked.length ? `<div class="dash-blocked">${blockedHtml}</div>` : '';
+    const bodyBlocks = isFeatured
+      ? [nextDueBlock, inprogBlock, blockedBlock]
+      : [inprogBlock, blockedBlock, nextDueBlock];
     return `<div class="dash-card ${sizeClass}" data-owner="${name}">
       <div class="dash-card-head">
         <div class="dash-card-name">${name}</div>
         <div class="dash-card-pct">${pct}%</div>
       </div>
       <div class="dash-progress-track"><div class="dash-progress-fill" style="width:${pct}%"></div></div>
-      <div class="dash-inprogress ${inprog.length ? '' : 'empty'}">${inprogHtml}</div>
-      ${blocked.length ? `<div class="dash-blocked">${blockedHtml}</div>` : ''}
-      ${nextDue ? `<div class="dash-next-due ${nextDue.overdue ? 'overdue' : ''}">${nextDueHtml}</div>` : ''}
+      ${bodyBlocks.join('\n      ')}
       <div class="dash-meta">已完成 ${done} / ${total} 項</div>
     </div>`;
   }).join('');
