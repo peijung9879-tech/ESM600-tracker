@@ -464,7 +464,9 @@
     line-height:1.4;
   }
   .dash-card.featured .dash-blocked{ font-size:16px; padding:12px 16px; }
-  .dash-card.featured .dash-next-due{ font-size:16px; padding:12px 16px; max-height:110px; overflow:hidden; line-height:1.4; }
+  .dash-card.featured .dash-next-due{ padding:12px 16px; max-height:150px; overflow:hidden; line-height:1.35; }
+  .dash-card.featured .dash-next-due-label{ font-size:35px; font-weight:800; }
+  .dash-card.featured .dash-next-due-content{ font-size:28px; }
   .dash-card.featured .dash-meta{ font-size:13px; }
   .dash-card.minor{ padding:10px 12px; opacity:.7; }
   .dash-card.minor .dash-card-name{ font-size:12px; }
@@ -1804,16 +1806,14 @@ function renderDashboard(){
       : '';
     const nextDueList = getNextDeadlineItems(items, 3);
     const nextDueHtml = nextDueList.length
-      ? `${nextDueList[0].overdue ? '🔴' : '📅'} 最近到期：${nextDueList.map(n=>`${n.date.getMonth()+1}/${n.date.getDate()}．${n.item.partId}．${n.item.name}`).join('、')}`
+      ? `<span class="dash-next-due-label">${nextDueList[0].overdue ? '🔴' : '📅'} 最近到期：</span><span class="dash-next-due-content">${nextDueList.map(n=>`${n.date.getMonth()+1}/${n.date.getDate()}．${n.item.partId}．${n.item.name}`).join('、')}</span>`
       : '';
     const isMinor = tvMode && !isFeatured;
     const sizeClass = isFeatured ? 'featured' : (isMinor ? 'minor' : '');
     const nextDueBlock = nextDueList.length ? `<div class="dash-next-due ${nextDueList[0].overdue ? 'overdue' : ''}">${nextDueHtml}</div>` : '';
     const inprogBlock = `<div class="dash-inprogress ${inprog.length ? '' : 'empty'}">${inprogHtml}</div>`;
     const blockedBlock = blocked.length ? `<div class="dash-blocked">${blockedHtml}</div>` : '';
-    const bodyBlocks = isFeatured
-      ? [nextDueBlock, inprogBlock, blockedBlock]
-      : [inprogBlock, blockedBlock, nextDueBlock];
+    const bodyBlocks = [inprogBlock, blockedBlock, nextDueBlock];
     return `<div class="dash-card ${sizeClass}" data-owner="${name}">
       <div class="dash-card-head">
         <div class="dash-card-name">${name}</div>
