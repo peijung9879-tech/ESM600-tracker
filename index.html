@@ -48,6 +48,12 @@
     margin:4px 0 9px 122px; font-size:11.5px; color:var(--blue); font-weight:600;
     background:var(--blue-soft); border-radius:6px; padding:4px 10px; display:inline-block;
   }
+  .load-row-wrap:last-child .load-next-due-note{ margin-bottom:0; }
+  .load-next-due-note{
+    margin:4px 0 9px 122px; font-size:11.5px; color:var(--amber); font-weight:600;
+    background:var(--amber-soft); border-radius:6px; padding:4px 10px; display:inline-block;
+  }
+  .load-next-due-note.overdue{ color:var(--red); background:var(--red-soft); }
   .load-name{ font-size:13px; font-weight:600; cursor:pointer; }
   .load-name.active{ color:var(--teal); }
   .load-bar{ display:flex; height:16px; border-radius:4px; overflow:hidden; background:var(--line); }
@@ -371,6 +377,11 @@
     font-size:12px; font-weight:600; color:var(--lock); background:var(--lock-soft);
     border-radius:8px; padding:8px 10px; line-height:1.5;
   }
+  .dash-next-due{
+    font-size:12px; font-weight:600; color:var(--amber); background:var(--amber-soft);
+    border-radius:8px; padding:8px 10px; line-height:1.5;
+  }
+  .dash-next-due.overdue{ color:var(--red); background:var(--red-soft); }
   .dash-meta{ font-size:11px; color:var(--ink-soft); font-family:var(--mono); }
 
   /* --- BOM hierarchy view --- */
@@ -453,6 +464,7 @@
     line-height:1.4;
   }
   .dash-card.featured .dash-blocked{ font-size:16px; padding:12px 16px; }
+  .dash-card.featured .dash-next-due{ font-size:16px; padding:12px 16px; }
   .dash-card.featured .dash-meta{ font-size:13px; }
   .dash-card.minor{ padding:10px 12px; opacity:.7; }
   .dash-card.minor .dash-card-name{ font-size:12px; }
@@ -460,6 +472,7 @@
   .dash-card.minor .dash-progress-track{ height:5px; }
   .dash-card.minor .dash-inprogress{ font-size:9.5px; padding:3px 6px; min-height:auto; line-height:1.3; }
   .dash-card.minor .dash-blocked{ font-size:9.5px; padding:3px 6px; line-height:1.3; }
+  .dash-card.minor .dash-next-due{ font-size:9.5px; padding:3px 6px; line-height:1.3; }
   .dash-card.minor .dash-meta{ font-size:9px; }
 
   /* --- Mobile mode --- */
@@ -500,7 +513,8 @@
   body.mobile-mode .dash-card-pct{ font-size:19px; }
   body.mobile-mode .dash-progress-track{ height:5px; }
   body.mobile-mode .dash-inprogress,
-  body.mobile-mode .dash-blocked{
+  body.mobile-mode .dash-blocked,
+  body.mobile-mode .dash-next-due{
     font-size:9.5px; padding:4px 6px; min-height:auto; line-height:1.3;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
@@ -516,7 +530,9 @@
   body.mobile-mode .dash-card.featured .dash-inprogress,
   body.mobile-mode .dash-card.minor .dash-inprogress,
   body.mobile-mode .dash-card.featured .dash-blocked,
-  body.mobile-mode .dash-card.minor .dash-blocked{
+  body.mobile-mode .dash-card.minor .dash-blocked,
+  body.mobile-mode .dash-card.featured .dash-next-due,
+  body.mobile-mode .dash-card.minor .dash-next-due{
     font-size:9.5px; padding:4px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   body.mobile-mode .dash-card.featured .dash-meta,
@@ -858,6 +874,19 @@ function getActionOwners(d){
   return names.length ? names : ["未指派"];
 }
 
+function getNextDeadlineItem(items){
+  const now = new Date();
+  now.setHours(0,0,0,0);
+  const withDates = items
+    .filter(i => i.status !== 'ok')
+    .map(i => ({ item: i, date: parseDeadline(i.deadline) }))
+    .filter(x => x.date);
+  if(!withDates.length) return null;
+  withDates.sort((a,b) => a.date - b.date);
+  const top = withDates[0];
+  return { item: top.item, date: top.date, overdue: top.date < now };
+}
+
 function renderLoadBars(){
   const owners = {};
   DATA.forEach(d=>{
@@ -878,6 +907,10 @@ function renderLoadBars(){
     const inprogNote = inprogItems.length
       ? `<div class="load-inprogress-note">🔵 進行中 ${Math.round(pctProg)}%：${inprogItems.map(i=>`${i.partId}．${i.name}`).join('、')}</div>`
       : '';
+    const nextDue = getNextDeadlineItem(c.items);
+    const nextDueNote = nextDue
+      ? `<div class="load-next-due-note ${nextDue.overdue ? 'overdue' : ''}">${nextDue.overdue ? '🔴' : '📅'} 最近到期：${nextDue.date.getMonth()+1}/${nextDue.date.getDate()}．${nextDue.item.partId}．${nextDue.item.name}</div>`
+      : '';
     return `<div class="load-row-wrap">
       <div class="load-row">
         <div class="load-name ${isActive}" data-owner="${name}">${name}</div>
@@ -891,6 +924,7 @@ function renderLoadBars(){
         <div class="load-count">${c.total} 項</div>
       </div>
       ${inprogNote}
+      ${nextDueNote}
     </div>`;
   }).join('');
   el.querySelectorAll('.load-name').forEach(n=>{
@@ -1768,6 +1802,10 @@ function renderDashboard(){
     const blockedHtml = blocked.length
       ? `🟣 待前置完成：${blocked.length} 項`
       : '';
+    const nextDue = getNextDeadlineItem(items);
+    const nextDueHtml = nextDue
+      ? `${nextDue.overdue ? '🔴' : '📅'} 最近到期：${nextDue.date.getMonth()+1}/${nextDue.date.getDate()}．${nextDue.item.partId}．${nextDue.item.name}`
+      : '';
     const isMinor = tvMode && !isFeatured;
     const sizeClass = isFeatured ? 'featured' : (isMinor ? 'minor' : '');
     return `<div class="dash-card ${sizeClass}" data-owner="${name}">
@@ -1778,6 +1816,7 @@ function renderDashboard(){
       <div class="dash-progress-track"><div class="dash-progress-fill" style="width:${pct}%"></div></div>
       <div class="dash-inprogress ${inprog.length ? '' : 'empty'}">${inprogHtml}</div>
       ${blocked.length ? `<div class="dash-blocked">${blockedHtml}</div>` : ''}
+      ${nextDue ? `<div class="dash-next-due ${nextDue.overdue ? 'overdue' : ''}">${nextDueHtml}</div>` : ''}
       <div class="dash-meta">已完成 ${done} / ${total} 項</div>
     </div>`;
   }).join('');
