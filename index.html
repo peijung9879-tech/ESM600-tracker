@@ -1992,13 +1992,6 @@ function renderDashboard(){
     if(!c.dataset.owner) return;
     c.onclick = ()=> setActiveOwner(c.dataset.owner);
   });
-  el.querySelectorAll('.countdown-owner-line').forEach(line=>{
-    line.addEventListener('click', (e)=>{
-      if(e.target.classList.contains('countdown-editable')) return;
-      const field = line.querySelector('.countdown-editable');
-      if(field) field.focus();
-    });
-  });
   el.querySelectorAll('.countdown-editable').forEach(cell=>{
     cell.addEventListener('click', (e)=> e.stopPropagation());
     cell.addEventListener('blur', (e)=>{
