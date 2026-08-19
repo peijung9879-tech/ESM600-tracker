@@ -474,10 +474,11 @@
   .countdown-label-text{ font-size:13px; font-weight:700; color:var(--ink); }
   .countdown-label-text.empty{ color:#b3afa5; font-style:italic; font-weight:400; }
   .countdown-date-text{ font-family:var(--mono); font-size:12px; color:var(--ink-soft); }
-  .countdown-days{ font-size:20px; font-weight:800; color:var(--lock); font-family:var(--mono); margin-top:4px; }
+  .countdown-main-line{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-top:4px; }
+  .countdown-days{ font-size:20px; font-weight:800; color:var(--lock); font-family:var(--mono); }
   .countdown-row.overdue .countdown-days{ color:var(--red); }
-  .countdown-owner-line{ font-size:12px; color:var(--ink-soft); margin-top:6px; }
-  .countdown-owner-text{ font-weight:600; color:var(--ink); }
+  .countdown-owner-line{ font-size:13px; color:var(--ink-soft); }
+  .countdown-owner-text{ font-weight:700; color:var(--ink); }
   .countdown-owner-text.empty{ color:#b3afa5; font-style:italic; font-weight:400; }
   .countdown-edit-btn{
     font-family:var(--sans); font-size:11px; font-weight:600; color:var(--lock);
@@ -486,12 +487,16 @@
   }
   .countdown-edit-btn:hover{ background:var(--lock); color:#fff; }
   .countdown-card .dash-card-head{ display:flex; align-items:center; gap:10px; }
-  .dash-card.countdown-card.featured .countdown-label-text{ font-size:22px; }
-  .dash-card.countdown-card.featured .countdown-date-text{ font-size:18px; }
-  .dash-card.countdown-card.featured .countdown-days{ font-size:36px; }
-  .dash-card.countdown-card.featured .dash-card-name{ font-size:32px; }
-  .dash-card.countdown-card.featured .countdown-owner-line{ font-size:16px; }
-  .dash-card.countdown-card.featured .countdown-edit-btn{ font-size:15px; padding:5px 14px; }
+  .dash-card.countdown-card.featured .countdown-label-text{ font-size:20px; }
+  .dash-card.countdown-card.featured .countdown-date-text{ font-size:17px; }
+  .dash-card.countdown-card.featured .countdown-days{ font-size:32px; }
+  .dash-card.countdown-card.featured .dash-card-name{ font-size:26px; }
+  .dash-card.countdown-card.featured .countdown-owner-line{ font-size:32px; }
+  .dash-card.countdown-card.featured .countdown-edit-btn{ font-size:14px; padding:4px 12px; }
+  .dash-card.countdown-card.featured{ padding:20px 24px; }
+  .dash-card.countdown-card.featured .dash-card-head{ margin-bottom:6px; }
+  .dash-card.countdown-card.featured .countdown-row{ padding:12px 14px; margin-top:8px; }
+  .dash-card.countdown-card.featured .countdown-main-line{ gap:12px; margin-top:2px; }
   .dash-card-head-featured{
     display:flex; align-items:flex-start; flex-wrap:wrap; gap:10px 16px; margin-bottom:12px;
   }
@@ -974,7 +979,7 @@ function applyMobilePage(){
     tlEl.style.display = currentView === 'timeline' ? 'block' : 'none';
   }
 }
-const PRIORITY_OWNERS = ["Cloud", "姝涵", "敬中", "星元", "嘉麟", "明勳"];
+const PRIORITY_OWNERS = ["Cloud", "姝涵", "敬中", "星元", "明勳"];
 
 function filteredData(){
   return DATA.filter(d => currentFilter === "all" || d.status === currentFilter);
@@ -1940,7 +1945,7 @@ function renderCountdownCardHtml(){
     const days = daysUntil(t.date);
     let daysText;
     if(days === null) daysText = '—';
-    else if(days > 0) daysText = `還有 ${days} 天`;
+    else if(days > 0) daysText = `剩餘 ${days} 天`;
     else if(days === 0) daysText = '就是今天！';
     else daysText = `已過期 ${Math.abs(days)} 天`;
     const overdue = days !== null && days < 0;
@@ -1950,8 +1955,10 @@ function renderCountdownCardHtml(){
           <span class="countdown-label-text ${t.label ? '' : 'empty'}">${t.label || `目標${key}說明`}</span>
           <span class="countdown-date-text">${t.date || ''}</span>
         </div>
-        <div class="countdown-days">${daysText}</div>
-        <div class="countdown-owner-line">👤 <span class="countdown-owner-text ${t.owner ? '' : 'empty'}">${t.owner || '未指派'}</span></div>
+        <div class="countdown-main-line">
+          <div class="countdown-days">${daysText}</div>
+          <div class="countdown-owner-line">👤 <span class="countdown-owner-text ${t.owner ? '' : 'empty'}">${t.owner || '未指派'}</span></div>
+        </div>
       </div>`;
   }).join('');
   return `<div class="dash-card countdown-card ${sizeClass}">
