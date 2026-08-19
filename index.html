@@ -480,11 +480,14 @@
   .countdown-date{ font-family:var(--mono); font-size:12px; color:var(--ink-soft); }
   .countdown-days{ font-size:20px; font-weight:800; color:var(--lock); font-family:var(--mono); margin-top:4px; }
   .countdown-row.overdue .countdown-days{ color:var(--red); }
+  .countdown-owner-line{ font-size:12px; color:var(--ink-soft); margin-top:6px; }
+  .countdown-owner{ font-weight:600; color:var(--ink); }
   .dash-card.countdown-card.featured .countdown-label-line{ font-size:22px; }
   .dash-card.countdown-card.featured .countdown-editable{ font-size:22px; }
   .dash-card.countdown-card.featured .countdown-date{ font-size:18px; }
   .dash-card.countdown-card.featured .countdown-days{ font-size:36px; }
   .dash-card.countdown-card.featured .dash-card-name{ font-size:32px; }
+  .dash-card.countdown-card.featured .countdown-owner-line{ font-size:16px; }
   .dash-card-head-featured{
     display:flex; align-items:flex-start; flex-wrap:wrap; gap:10px 16px; margin-bottom:12px;
   }
@@ -766,7 +769,7 @@ function buildInitialTasks(){
 let DATA = [];
 let HISTORY = [];
 let MILESTONES = [];
-let COUNTDOWN_TARGETS = { A: { date: '', label: '' }, B: { date: '', label: '' } };
+let COUNTDOWN_TARGETS = { A: { date: '', label: '', owner: '' }, B: { date: '', label: '', owner: '' } };
 let milestoneManagerCollapsed = true;
 const STORAGE_KEY = 'tracker-current-v14';
 const HISTORY_KEY = 'tracker-history-v14';
@@ -810,7 +813,7 @@ async function initData(){
     const ct = await storage.get(COUNTDOWN_KEY);
     COUNTDOWN_TARGETS = ct ? JSON.parse(ct.value) : { A: { date: '', label: '' }, B: { date: '', label: '' } };
   }catch(err){
-    COUNTDOWN_TARGETS = { A: { date: '', label: '' }, B: { date: '', label: '' } };
+    COUNTDOWN_TARGETS = { A: { date: '', label: '', owner: '' }, B: { date: '', label: '', owner: '' } };
   }
   const didSplit = splitAllCombinedFollowupTasks();
   if(didSplit){
@@ -873,7 +876,7 @@ async function persistCountdown(){
 }
 
 async function updateCountdownField(key, field, newVal){
-  if(!COUNTDOWN_TARGETS[key]) COUNTDOWN_TARGETS[key] = { date: '', label: '' };
+  if(!COUNTDOWN_TARGETS[key]) COUNTDOWN_TARGETS[key] = { date: '', label: '', owner: '' };
   if(COUNTDOWN_TARGETS[key][field] === newVal) return;
   COUNTDOWN_TARGETS[key][field] = newVal;
   showToast('儲存中…');
@@ -1884,7 +1887,7 @@ function daysUntil(dateStr){
 function renderCountdownCardHtml(){
   const sizeClass = tvMode ? 'featured' : '';
   const rows = ['A', 'B'].map(key=>{
-    const t = COUNTDOWN_TARGETS[key] || { date: '', label: '' };
+    const t = COUNTDOWN_TARGETS[key] || { date: '', label: '', owner: '' };
     const days = daysUntil(t.date);
     let daysText;
     if(days === null) daysText = '—';
@@ -1899,6 +1902,7 @@ function renderCountdownCardHtml(){
           <span class="editable countdown-editable countdown-date" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="date" data-placeholder="日期(如10/10)">${t.date || ''}</span>
         </div>
         <div class="countdown-days">${daysText}</div>
+        <div class="countdown-owner-line">👤 <span class="editable countdown-editable countdown-owner" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="owner" data-placeholder="負責人（可打多個，用頓號分隔）">${t.owner || ''}</span></div>
       </div>`;
   }).join('');
   return `<div class="dash-card countdown-card ${sizeClass}">
