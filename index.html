@@ -173,6 +173,12 @@
   .history-item .h-change{ color:var(--ink); }
   .history-item .h-old{ color:var(--red); text-decoration:line-through; opacity:.7; }
   .history-item .h-new{ color:var(--teal); font-weight:600; }
+  .history-revert-btn{
+    margin-left:10px; font-family:var(--sans); font-size:11px; font-weight:600; color:var(--blue);
+    background:var(--blue-soft); border:1px solid var(--blue); border-radius:20px; padding:2px 10px;
+    cursor:pointer;
+  }
+  .history-revert-btn:hover{ background:var(--blue); color:#fff; }
   .history-empty{ padding:30px 0; text-align:center; color:var(--ink-soft); font-size:13px; }
 
   /* --- timeline page (horizontal, time-axis) --- */
@@ -456,6 +462,29 @@
     grid-column: span 2; padding:30px 34px; border-width:2px; border-color:var(--teal);
     box-shadow:0 6px 22px rgba(31,122,112,.12); height:360px; overflow:hidden;
   }
+
+  /* --- 倒數計時卡片 --- */
+  .countdown-card{ border-color:var(--lock); background:var(--lock-soft); }
+  .countdown-card .dash-card-name{ color:var(--lock); }
+  .countdown-row{
+    background:#fff; border-radius:8px; padding:10px 12px; margin-top:10px;
+  }
+  .countdown-row.overdue{ background:var(--red-soft); }
+  .countdown-label-line{ display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+  .countdown-editable{
+    font-size:13px; font-weight:600; color:var(--ink); border-bottom:1px dashed #c9c5bb; cursor:text;
+  }
+  .countdown-editable:hover{ background:var(--lock-soft); }
+  .countdown-editable:focus{ outline:2px solid var(--lock); outline-offset:2px; background:#fff; }
+  .countdown-editable:empty:before{ content:attr(data-placeholder); color:#b3afa5; font-style:italic; }
+  .countdown-date{ font-family:var(--mono); font-size:12px; color:var(--ink-soft); }
+  .countdown-days{ font-size:20px; font-weight:800; color:var(--lock); font-family:var(--mono); margin-top:4px; }
+  .countdown-row.overdue .countdown-days{ color:var(--red); }
+  .dash-card.countdown-card.featured .countdown-label-line{ font-size:22px; }
+  .dash-card.countdown-card.featured .countdown-editable{ font-size:22px; }
+  .dash-card.countdown-card.featured .countdown-date{ font-size:18px; }
+  .dash-card.countdown-card.featured .countdown-days{ font-size:36px; }
+  .dash-card.countdown-card.featured .dash-card-name{ font-size:32px; }
   .dash-card-head-featured{
     display:flex; align-items:flex-start; flex-wrap:wrap; gap:10px 16px; margin-bottom:12px;
   }
@@ -737,10 +766,12 @@ function buildInitialTasks(){
 let DATA = [];
 let HISTORY = [];
 let MILESTONES = [];
+let COUNTDOWN_TARGETS = { A: { date: '', label: '' }, B: { date: '', label: '' } };
 let milestoneManagerCollapsed = true;
 const STORAGE_KEY = 'tracker-current-v14';
 const HISTORY_KEY = 'tracker-history-v14';
 const MILESTONES_KEY = 'tracker-milestones-v1';
+const COUNTDOWN_KEY = 'tracker-countdown-v1';
 
 function showDebugError(msg){
   const el = document.getElementById('debugBanner');
@@ -774,6 +805,12 @@ async function initData(){
     MILESTONES = ms ? JSON.parse(ms.value) : [];
   }catch(err){
     MILESTONES = [];
+  }
+  try{
+    const ct = await storage.get(COUNTDOWN_KEY);
+    COUNTDOWN_TARGETS = ct ? JSON.parse(ct.value) : { A: { date: '', label: '' }, B: { date: '', label: '' } };
+  }catch(err){
+    COUNTDOWN_TARGETS = { A: { date: '', label: '' }, B: { date: '', label: '' } };
   }
   const didSplit = splitAllCombinedFollowupTasks();
   if(didSplit){
@@ -824,6 +861,25 @@ async function persistMilestones(){
     console.error('儲存目標時程失敗', err);
     showDebugError('儲存目標時程失敗：' + err.message);
   }
+}
+
+async function persistCountdown(){
+  try{
+    await storage.set(COUNTDOWN_KEY, JSON.stringify(COUNTDOWN_TARGETS));
+  }catch(err){
+    console.error('儲存倒數計時失敗', err);
+    showDebugError('儲存倒數計時失敗：' + err.message);
+  }
+}
+
+async function updateCountdownField(key, field, newVal){
+  if(!COUNTDOWN_TARGETS[key]) COUNTDOWN_TARGETS[key] = { date: '', label: '' };
+  if(COUNTDOWN_TARGETS[key][field] === newVal) return;
+  COUNTDOWN_TARGETS[key][field] = newVal;
+  showToast('儲存中…');
+  await persistCountdown();
+  showToast('已更新倒數計時，已同步到共用雲端');
+  renderDashboard();
 }
 
 async function persistData(){
@@ -1311,21 +1367,58 @@ document.querySelectorAll('.mobile-page-btn').forEach(btn=>{
   };
 });
 
+const STATUS_LABEL_REVERSE = {'已確認':'ok', '待確認':'pending', '進行中':'inprogress', '待前置完成':'blocked', '急件':'urgent'};
+const REVERTIBLE_FIELDS = ['status', 'deadline', 'followup', 'note', 'progress', 'name'];
+
 function renderHistoryList(){
   const el = document.getElementById('historyList');
   if(HISTORY.length === 0){
     el.innerHTML = `<div class="history-empty">目前還沒有任何編輯紀錄</div>`;
     return;
   }
-  el.innerHTML = HISTORY.map(h => `
+  el.innerHTML = HISTORY.map((h, idx) => `
     <div class="history-item">
       <div class="h-top"><span>${h.partId} · ${h.name}（負責人：${h.assignee||'—'}）</span><span>${h.time}</span></div>
       <div class="h-change">
         ${fieldLabel(h.field)}：
         <span class="h-old">${h.oldVal || '(空白)'}</span> →
         <span class="h-new">${h.newVal || '(空白)'}</span>
+        ${REVERTIBLE_FIELDS.includes(h.field) ? `<button class="history-revert-btn" data-history-idx="${idx}">↩️ 復原</button>` : ''}
       </div>
     </div>`).join('');
+  el.querySelectorAll('.history-revert-btn').forEach(btn=>{
+    btn.onclick = ()=> revertHistoryEntry(parseInt(btn.dataset.historyIdx, 10));
+  });
+}
+
+async function revertHistoryEntry(idx){
+  const entry = HISTORY[idx];
+  if(!entry) return;
+  const target = DATA.find(d => d.id === entry.id);
+  if(!target){
+    showToast('⚠️ 找不到這筆任務，可能已被刪除，無法復原');
+    return;
+  }
+  let rawOld = entry.oldVal;
+  if(entry.field === 'status'){
+    rawOld = STATUS_LABEL_REVERSE[entry.oldVal] !== undefined ? STATUS_LABEL_REVERSE[entry.oldVal] : entry.oldVal;
+  }
+  if(rawOld === '(空白)') rawOld = '';
+  if(!confirm(`確定要把「${entry.name}」的${fieldLabel(entry.field)}復原成「${entry.oldVal || '(空白)'}」嗎？`)) return;
+
+  const currentVal = target[entry.field];
+  target[entry.field] = rawOld;
+  const displayCurrent = entry.field === 'status' ? statusLabel(currentVal) : (currentVal || '(空白)');
+  HISTORY.unshift({
+    id: target.id, partId: target.partId, name: target.name, assignee: target.followup, field: entry.field,
+    oldVal: displayCurrent, newVal: entry.oldVal || '(空白)',
+    time: new Date().toLocaleString('zh-TW', {hour12:false}) + '（↩️ 復原）'
+  });
+  showToast('復原中…');
+  await Promise.all([persistData(), persistHistory()]);
+  renderHistoryList();
+  renderAll();
+  showToast('已復原，已同步到共用雲端');
 }
 
 document.getElementById('historyBtn').onclick = ()=>{
@@ -1341,12 +1434,17 @@ document.getElementById('historyOverlay').onclick = (e)=>{
 
 function parseDeadline(str){
   if(!str) return null;
-  const m = str.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  let m = str.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  if(!m){
+    // 也支援 10/10 這種斜線格式，效果等同「10月10日」
+    m = str.match(/(?<![\d.])(\d{1,2})\s*\/\s*(\d{1,2})(?!\d)/);
+  }
   if(!m) return null;
   const now = new Date();
   let year = now.getFullYear();
   const month = parseInt(m[1], 10) - 1;
   const day = parseInt(m[2], 10);
+  if(month < 0 || month > 11 || day < 1 || day > 31) return null;
   let d = new Date(year, month, day);
   // 如果算出來的日期比現在早超過9個月，很可能是指明年（跨年狀況），自動加一年
   if((now - d) / 86400000 > 270){
@@ -1775,6 +1873,42 @@ document.getElementById('addItemOverlay').onclick = (e)=>{
 
 const DASHBOARD_EXCLUDED_OWNERS = ["Ryan"];
 
+function daysUntil(dateStr){
+  const d = parseDeadline(dateStr);
+  if(!d) return null;
+  const now = new Date();
+  now.setHours(0,0,0,0);
+  return Math.round((d - now) / 86400000);
+}
+
+function renderCountdownCardHtml(){
+  const sizeClass = tvMode ? 'featured' : '';
+  const rows = ['A', 'B'].map(key=>{
+    const t = COUNTDOWN_TARGETS[key] || { date: '', label: '' };
+    const days = daysUntil(t.date);
+    let daysText;
+    if(days === null) daysText = '—';
+    else if(days > 0) daysText = `還有 ${days} 天`;
+    else if(days === 0) daysText = '就是今天！';
+    else daysText = `已過期 ${Math.abs(days)} 天`;
+    const overdue = days !== null && days < 0;
+    return `
+      <div class="countdown-row ${overdue ? 'overdue' : ''}">
+        <div class="countdown-label-line">
+          <span class="editable countdown-editable" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="label" data-placeholder="目標${key}說明">${t.label || ''}</span>
+          <span class="editable countdown-editable countdown-date" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="date" data-placeholder="日期(如10/10)">${t.date || ''}</span>
+        </div>
+        <div class="countdown-days">${daysText}</div>
+      </div>`;
+  }).join('');
+  return `<div class="dash-card countdown-card ${sizeClass}">
+    <div class="dash-card-head">
+      <div class="dash-card-name">⏳ 倒數計時</div>
+    </div>
+    ${rows}
+  </div>`;
+}
+
 function renderDashboard(){
   const owners = {};
   DATA.forEach(d=>{
@@ -1798,7 +1932,8 @@ function renderDashboard(){
     sorted.sort((a,b)=>b[1].length-a[1].length);
   }
   const el = document.getElementById('dashboardGrid');
-  el.innerHTML = sorted.map(([name, items])=>{
+  const countdownHtml = renderCountdownCardHtml();
+  el.innerHTML = countdownHtml + sorted.map(([name, items])=>{
     const total = items.length;
     const done = items.filter(i=>i.status==='ok').length;
     const pct = total ? Math.round(done/total*100) : 0;
@@ -1850,7 +1985,17 @@ function renderDashboard(){
     </div>`;
   }).join('');
   el.querySelectorAll('.dash-card').forEach(c=>{
+    if(!c.dataset.owner) return;
     c.onclick = ()=> setActiveOwner(c.dataset.owner);
+  });
+  el.querySelectorAll('.countdown-editable').forEach(cell=>{
+    cell.addEventListener('click', (e)=> e.stopPropagation());
+    cell.addEventListener('blur', (e)=>{
+      updateCountdownField(e.target.dataset.ckey, e.target.dataset.cfield, e.target.textContent.trim());
+    });
+    cell.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+    });
   });
 }
 
