@@ -471,23 +471,27 @@
   }
   .countdown-row.overdue{ background:var(--red-soft); }
   .countdown-label-line{ display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
-  .countdown-editable{
-    font-size:13px; font-weight:600; color:var(--ink); border-bottom:1px dashed #c9c5bb; cursor:text;
-  }
-  .countdown-editable:hover{ background:var(--lock-soft); }
-  .countdown-editable:focus{ outline:2px solid var(--lock); outline-offset:2px; background:#fff; }
-  .countdown-editable:empty:before{ content:attr(data-placeholder); color:#b3afa5; font-style:italic; }
-  .countdown-date{ font-family:var(--mono); font-size:12px; color:var(--ink-soft); }
+  .countdown-label-text{ font-size:13px; font-weight:700; color:var(--ink); }
+  .countdown-label-text.empty{ color:#b3afa5; font-style:italic; font-weight:400; }
+  .countdown-date-text{ font-family:var(--mono); font-size:12px; color:var(--ink-soft); }
   .countdown-days{ font-size:20px; font-weight:800; color:var(--lock); font-family:var(--mono); margin-top:4px; }
   .countdown-row.overdue .countdown-days{ color:var(--red); }
-  .countdown-owner-line{ font-size:12px; color:var(--ink-soft); margin-top:6px; cursor:text; }
-  .countdown-owner{ font-weight:600; color:var(--ink); display:inline-block; min-width:200px; min-height:1.4em; vertical-align:top; }
-  .dash-card.countdown-card.featured .countdown-label-line{ font-size:22px; }
-  .dash-card.countdown-card.featured .countdown-editable{ font-size:22px; }
-  .dash-card.countdown-card.featured .countdown-date{ font-size:18px; }
+  .countdown-owner-line{ font-size:12px; color:var(--ink-soft); margin-top:6px; }
+  .countdown-owner-text{ font-weight:600; color:var(--ink); }
+  .countdown-owner-text.empty{ color:#b3afa5; font-style:italic; font-weight:400; }
+  .countdown-edit-btn{
+    font-family:var(--sans); font-size:11px; font-weight:600; color:var(--lock);
+    background:#fff; border:1px solid var(--lock); border-radius:20px; padding:3px 10px;
+    cursor:pointer; margin-left:auto;
+  }
+  .countdown-edit-btn:hover{ background:var(--lock); color:#fff; }
+  .countdown-card .dash-card-head{ display:flex; align-items:center; gap:10px; }
+  .dash-card.countdown-card.featured .countdown-label-text{ font-size:22px; }
+  .dash-card.countdown-card.featured .countdown-date-text{ font-size:18px; }
   .dash-card.countdown-card.featured .countdown-days{ font-size:36px; }
   .dash-card.countdown-card.featured .dash-card-name{ font-size:32px; }
   .dash-card.countdown-card.featured .countdown-owner-line{ font-size:16px; }
+  .dash-card.countdown-card.featured .countdown-edit-btn{ font-size:15px; padding:5px 14px; }
   .dash-card-head-featured{
     display:flex; align-items:flex-start; flex-wrap:wrap; gap:10px 16px; margin-bottom:12px;
   }
@@ -711,6 +715,51 @@
       <div style="margin-top:14px; display:flex; gap:8px; justify-content:flex-end;">
         <button class="history-btn" id="cancelGlobalAddItemBtn">取消</button>
         <button class="save-btn" id="confirmGlobalAddItemBtn">確認新增</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="history-overlay" id="countdownEditOverlay">
+  <div class="history-modal" style="max-width:560px;">
+    <div class="history-modal-head">
+      <h2>編輯倒數計時目標</h2>
+      <button class="history-close" id="countdownEditOverlayClose">×</button>
+    </div>
+    <div style="padding:20px;">
+      <div style="font-size:13px; font-weight:700; color:var(--ink); margin-bottom:10px;">目標 A</div>
+      <div class="add-item-field">
+        <label>目標說明</label>
+        <input type="text" id="countdownFormALabel" class="add-item-input-full" placeholder="例：外觀完成">
+      </div>
+      <div class="add-item-field">
+        <label>日期（格式例：8/28 或 8月28日）</label>
+        <input type="text" id="countdownFormADate" class="add-item-input-full" placeholder="8/28">
+      </div>
+      <div class="add-item-field">
+        <label>負責人（可打多個，用頓號分隔）</label>
+        <input type="text" id="countdownFormAOwner" class="add-item-input-full" placeholder="例：Cloud、姝涵">
+      </div>
+
+      <div style="border-top:1px solid var(--line); margin:16px 0;"></div>
+
+      <div style="font-size:13px; font-weight:700; color:var(--ink); margin-bottom:10px;">目標 B</div>
+      <div class="add-item-field">
+        <label>目標說明</label>
+        <input type="text" id="countdownFormBLabel" class="add-item-input-full" placeholder="例：機構圖面完成">
+      </div>
+      <div class="add-item-field">
+        <label>日期（格式例：9/21 或 9月21日）</label>
+        <input type="text" id="countdownFormBDate" class="add-item-input-full" placeholder="9/21">
+      </div>
+      <div class="add-item-field">
+        <label>負責人（可打多個，用頓號分隔）</label>
+        <input type="text" id="countdownFormBOwner" class="add-item-input-full" placeholder="例：星元">
+      </div>
+
+      <div style="margin-top:14px; display:flex; gap:8px; justify-content:flex-end;">
+        <button class="history-btn" id="cancelCountdownEditBtn">取消</button>
+        <button class="save-btn" id="confirmCountdownEditBtn">確認儲存</button>
       </div>
     </div>
   </div>
@@ -1898,16 +1947,17 @@ function renderCountdownCardHtml(){
     return `
       <div class="countdown-row ${overdue ? 'overdue' : ''}">
         <div class="countdown-label-line">
-          <span class="countdown-editable" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="label" data-placeholder="目標${key}說明">${t.label || ''}</span>
-          <span class="countdown-editable countdown-date" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="date" data-placeholder="日期(如10/10)">${t.date || ''}</span>
+          <span class="countdown-label-text ${t.label ? '' : 'empty'}">${t.label || `目標${key}說明`}</span>
+          <span class="countdown-date-text">${t.date || ''}</span>
         </div>
         <div class="countdown-days">${daysText}</div>
-        <div class="countdown-owner-line">👤 <span class="countdown-editable countdown-owner" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="owner" data-placeholder="負責人（可打多個，用頓號分隔）">${t.owner || ''}</span></div>
+        <div class="countdown-owner-line">👤 <span class="countdown-owner-text ${t.owner ? '' : 'empty'}">${t.owner || '未指派'}</span></div>
       </div>`;
   }).join('');
   return `<div class="dash-card countdown-card ${sizeClass}">
     <div class="dash-card-head">
       <div class="dash-card-name">⏳ 倒數計時</div>
+      <button class="countdown-edit-btn" id="countdownEditBtn" title="編輯倒數計時目標">✏️ 編輯</button>
     </div>
     ${rows}
   </div>`;
@@ -1992,16 +2042,46 @@ function renderDashboard(){
     if(!c.dataset.owner) return;
     c.onclick = ()=> setActiveOwner(c.dataset.owner);
   });
-  el.querySelectorAll('.countdown-editable').forEach(cell=>{
-    cell.addEventListener('click', (e)=> e.stopPropagation());
-    cell.addEventListener('blur', (e)=>{
-      updateCountdownField(e.target.dataset.ckey, e.target.dataset.cfield, e.target.textContent.trim());
-    });
-    cell.addEventListener('keydown', (e)=>{
-      if(e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
-    });
-  });
+  const editBtn = document.getElementById('countdownEditBtn');
+  if(editBtn){
+    editBtn.onclick = (e)=>{ e.stopPropagation(); openCountdownEditModal(); };
+  }
 }
+
+function openCountdownEditModal(){
+  ['A','B'].forEach(key=>{
+    const t = COUNTDOWN_TARGETS[key] || { date: '', label: '', owner: '' };
+    document.getElementById(`countdownForm${key}Label`).value = t.label || '';
+    document.getElementById(`countdownForm${key}Date`).value = t.date || '';
+    document.getElementById(`countdownForm${key}Owner`).value = t.owner || '';
+  });
+  document.getElementById('countdownEditOverlay').classList.add('show');
+}
+
+async function saveCountdownEdits(){
+  ['A','B'].forEach(key=>{
+    if(!COUNTDOWN_TARGETS[key]) COUNTDOWN_TARGETS[key] = { date:'', label:'', owner:'' };
+    COUNTDOWN_TARGETS[key].label = document.getElementById(`countdownForm${key}Label`).value.trim();
+    COUNTDOWN_TARGETS[key].date = document.getElementById(`countdownForm${key}Date`).value.trim();
+    COUNTDOWN_TARGETS[key].owner = document.getElementById(`countdownForm${key}Owner`).value.trim();
+  });
+  showToast('儲存中…');
+  await persistCountdown();
+  document.getElementById('countdownEditOverlay').classList.remove('show');
+  renderDashboard();
+  showToast('已更新倒數計時，已同步到共用雲端');
+}
+
+document.getElementById('countdownEditOverlayClose').onclick = ()=>{
+  document.getElementById('countdownEditOverlay').classList.remove('show');
+};
+document.getElementById('cancelCountdownEditBtn').onclick = ()=>{
+  document.getElementById('countdownEditOverlay').classList.remove('show');
+};
+document.getElementById('confirmCountdownEditBtn').onclick = saveCountdownEdits;
+document.getElementById('countdownEditOverlay').onclick = (e)=>{
+  if(e.target.id === 'countdownEditOverlay') e.target.classList.remove('show');
+};
 
 function renderAll(){
   populatePersonalSelect();
