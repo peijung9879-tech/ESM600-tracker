@@ -480,8 +480,8 @@
   .countdown-date{ font-family:var(--mono); font-size:12px; color:var(--ink-soft); }
   .countdown-days{ font-size:20px; font-weight:800; color:var(--lock); font-family:var(--mono); margin-top:4px; }
   .countdown-row.overdue .countdown-days{ color:var(--red); }
-  .countdown-owner-line{ font-size:12px; color:var(--ink-soft); margin-top:6px; }
-  .countdown-owner{ font-weight:600; color:var(--ink); }
+  .countdown-owner-line{ font-size:12px; color:var(--ink-soft); margin-top:6px; cursor:text; }
+  .countdown-owner{ font-weight:600; color:var(--ink); display:inline-block; min-width:200px; min-height:1.4em; vertical-align:top; }
   .dash-card.countdown-card.featured .countdown-label-line{ font-size:22px; }
   .dash-card.countdown-card.featured .countdown-editable{ font-size:22px; }
   .dash-card.countdown-card.featured .countdown-date{ font-size:18px; }
@@ -1898,11 +1898,11 @@ function renderCountdownCardHtml(){
     return `
       <div class="countdown-row ${overdue ? 'overdue' : ''}">
         <div class="countdown-label-line">
-          <span class="editable countdown-editable" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="label" data-placeholder="目標${key}說明">${t.label || ''}</span>
-          <span class="editable countdown-editable countdown-date" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="date" data-placeholder="日期(如10/10)">${t.date || ''}</span>
+          <span class="countdown-editable" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="label" data-placeholder="目標${key}說明">${t.label || ''}</span>
+          <span class="countdown-editable countdown-date" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="date" data-placeholder="日期(如10/10)">${t.date || ''}</span>
         </div>
         <div class="countdown-days">${daysText}</div>
-        <div class="countdown-owner-line">👤 <span class="editable countdown-editable countdown-owner" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="owner" data-placeholder="負責人（可打多個，用頓號分隔）">${t.owner || ''}</span></div>
+        <div class="countdown-owner-line">👤 <span class="countdown-editable countdown-owner" contenteditable="true" spellcheck="false" data-ckey="${key}" data-cfield="owner" data-placeholder="負責人（可打多個，用頓號分隔）">${t.owner || ''}</span></div>
       </div>`;
   }).join('');
   return `<div class="dash-card countdown-card ${sizeClass}">
@@ -1991,6 +1991,13 @@ function renderDashboard(){
   el.querySelectorAll('.dash-card').forEach(c=>{
     if(!c.dataset.owner) return;
     c.onclick = ()=> setActiveOwner(c.dataset.owner);
+  });
+  el.querySelectorAll('.countdown-owner-line').forEach(line=>{
+    line.addEventListener('click', (e)=>{
+      if(e.target.classList.contains('countdown-editable')) return;
+      const field = line.querySelector('.countdown-editable');
+      if(field) field.focus();
+    });
   });
   el.querySelectorAll('.countdown-editable').forEach(cell=>{
     cell.addEventListener('click', (e)=> e.stopPropagation());
