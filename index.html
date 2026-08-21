@@ -1194,7 +1194,7 @@ function renderOwnerView(){
         <tbody>
           ${items.map(i=>`
             <tr>
-              <td class="id-cell">${i.partId}</td>
+              <td class="id-cell editable" contenteditable="true" spellcheck="false" data-placeholder="項次" data-id="${i.id}" data-field="partId">${i.partId}</td>
               <td><span class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="未命名" data-id="${i.id}" data-field="name">${i.name || ""}</span>${i.appearance ? '<span class="exterior-tag">🎨 外觀</span>' : ''}</td>
               <td>
                 <select class="status-select ${i.status}" data-id="${i.id}">
@@ -1262,7 +1262,7 @@ function renderRawView(){
       <tbody>
         ${data.map(i=>`
           <tr>
-            <td class="id-cell">${i.partId}</td>
+            <td class="id-cell editable" contenteditable="true" spellcheck="false" data-placeholder="項次" data-id="${i.id}" data-field="partId">${i.partId}</td>
             <td><span class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="未命名" data-id="${i.id}" data-field="name">${i.name || ""}</span>${i.appearance ? '<span class="exterior-tag">🎨 外觀</span>' : ''}</td>
             <td>
               <select class="status-select ${i.status}" data-id="${i.id}">
@@ -1282,13 +1282,42 @@ function renderRawView(){
 }
 
 function fieldLabel(f){
-  return {followup:'負責人', note:'備註', deadline:'期限', status:'狀態', name:'品名', progress:'現況'}[f] || f;
+  return {followup:'負責人', note:'備註', deadline:'期限', status:'狀態', name:'品名', progress:'現況', partId:'項次'}[f] || f;
 }
 
 async function handleFieldChange(id, field, oldRaw, newRaw){
   if(oldRaw === newRaw) return;
   const entry = DATA.find(d=>d.id===id);
   if(!entry) return;
+
+  // 項次變更：內部 id 是「項次::負責人」組成的，改項次時要一併更新 id
+  if(field === 'partId'){
+    const newPartId = newRaw.trim();
+    if(!newPartId){
+      showToast('⚠️ 項次不能空白');
+      renderAll();
+      return;
+    }
+    const newId = `${newPartId}::${entry.followup}`;
+    if(newId !== entry.id && DATA.some(d=>d.id===newId)){
+      showToast(`⚠️ 「${newPartId}」已有同名負責人的項目，請換一個項次`);
+      renderAll();
+      return;
+    }
+    entry.partId = newPartId;
+    entry.id = newId;
+    HISTORY.unshift({
+      id: newId, partId: newPartId, name: entry.name, assignee: entry.followup, field,
+      oldVal: oldRaw || '(空白)', newVal: newPartId,
+      time: new Date().toLocaleString('zh-TW', {hour12:false})
+    });
+    showToast('儲存中…');
+    await Promise.all([persistData(), persistHistory()]);
+    renderHistoryList();
+    renderAll();
+    showToast(`已更新項次為「${newPartId}」，已同步到共用雲端`);
+    return;
+  }
 
   // 負責人欄位如果打了多個名字，自動拆成各自獨立的任務（複製其他欄位，各自可編輯）
   if(field === 'followup'){
