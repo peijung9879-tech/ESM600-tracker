@@ -485,23 +485,6 @@
   /* --- 倒數計時卡片 --- */
   .countdown-card{ border-color:var(--lock); background:var(--lock-soft); }
   .countdown-card .dash-card-name{ color:var(--lock); }
-  .countdown-overall{
-    background:#fff; border-radius:8px; padding:10px 12px; margin-top:10px;
-    border-left:4px solid var(--teal);
-  }
-  .countdown-overall-head{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
-  .countdown-overall-label{ font-size:12px; font-weight:700; color:var(--ink-soft); }
-  .countdown-overall-pct{ font-size:24px; font-weight:800; color:var(--teal); font-family:var(--mono); }
-  .countdown-overall-track{
-    height:8px; background:var(--line); border-radius:5px; overflow:hidden; margin-top:6px;
-  }
-  .countdown-overall-fill{ height:100%; background:var(--teal); border-radius:5px; transition:width .4s ease; }
-  .countdown-overall-meta{ font-size:10.5px; color:var(--ink-soft); font-family:var(--mono); margin-top:5px; }
-  .dash-card.countdown-card.featured .countdown-overall{ padding:12px 14px; margin-top:8px; }
-  .dash-card.countdown-card.featured .countdown-overall-label{ font-size:18px; }
-  .dash-card.countdown-card.featured .countdown-overall-pct{ font-size:36px; }
-  .dash-card.countdown-card.featured .countdown-overall-track{ height:12px; }
-  .dash-card.countdown-card.featured .countdown-overall-meta{ font-size:14px; }
   .countdown-row{
     background:#fff; border-radius:8px; padding:10px 12px; margin-top:10px;
   }
@@ -523,11 +506,11 @@
   }
   .countdown-edit-btn:hover{ background:var(--lock); color:#fff; }
   .countdown-card .dash-card-head{ display:flex; align-items:center; gap:10px; }
-  .dash-card.countdown-card.featured .countdown-label-text{ font-size:17px; }
-  .dash-card.countdown-card.featured .countdown-date-text{ font-size:17px; }
-  .dash-card.countdown-card.featured .countdown-days{ font-size:26px; }
+  .dash-card.countdown-card.featured .countdown-label-text{ font-size:20px; }
+  .dash-card.countdown-card.featured .countdown-date-text{ font-size:18px; }
+  .dash-card.countdown-card.featured .countdown-days{ font-size:32px; }
   .dash-card.countdown-card.featured .dash-card-name{ font-size:26px; }
-  .dash-card.countdown-card.featured .countdown-owner-line{ font-size:26px; }
+  .dash-card.countdown-card.featured .countdown-owner-line{ font-size:32px; }
   .dash-card.countdown-card.featured .countdown-edit-btn{ font-size:14px; padding:4px 12px; }
   .dash-card.countdown-card.featured{ padding:20px 24px; }
   .dash-card.countdown-card.featured .dash-card-head{ margin-bottom:6px; }
@@ -1005,7 +988,7 @@ const REVIEW_STATUS_OWNERS = ["阿澤"];
 // 主管：不顯示完成百分比與進度條（他們的角色是審核，不是自己執行）
 const SUPERVISOR_OWNERS = ["阿澤"];
 // 儀表板第一組（分隔線以上），其餘的人自動歸到第二組
-const GROUP1_OWNERS = ["阿澤", "Cloud", "姝涵", "敬中", "星元", "昶閔", "明勳", "嘉麟"];
+const GROUP1_OWNERS = ["阿澤", "Cloud", "姝涵", "敬中", "星元", "明勳", "嘉麟"];
 function statusOptionsHtml(i){
   const opts = [
     ['ok','已確認'], ['inprogress','進行中'], ['blocked','待前置完成'],
@@ -2020,11 +2003,6 @@ function daysUntil(dateStr){
 
 function renderCountdownCardHtml(){
   const sizeClass = tvMode ? 'featured' : '';
-  // 整體完成率：只計算儀表板上有顯示的負責人（排除 DASHBOARD_EXCLUDED_OWNERS）
-  const counted = DATA.filter(d => getActionOwners(d).some(o => !DASHBOARD_EXCLUDED_OWNERS.includes(o) && !SUPERVISOR_OWNERS.includes(o)));
-  const overallTotal = counted.length;
-  const overallDone = counted.filter(d => d.status === 'ok').length;
-  const overallPct = overallTotal ? Math.round(overallDone / overallTotal * 100) : 0;
   const rows = ['A', 'B'].map(key=>{
     const t = COUNTDOWN_TARGETS[key] || { date: '', label: '', owner: '' };
     const days = daysUntil(t.date);
@@ -2050,14 +2028,6 @@ function renderCountdownCardHtml(){
     <div class="dash-card-head">
       <div class="dash-card-name">⏳ 倒數計時</div>
       <button class="countdown-edit-btn" id="countdownEditBtn" title="編輯倒數計時目標">✏️ 編輯</button>
-    </div>
-    <div class="countdown-overall">
-      <div class="countdown-overall-head">
-        <span class="countdown-overall-label">整體完成率</span>
-        <span class="countdown-overall-pct">${overallPct}%</span>
-      </div>
-      <div class="countdown-overall-track"><div class="countdown-overall-fill" style="width:${overallPct}%"></div></div>
-      <div class="countdown-overall-meta">已完成 ${overallDone} / ${overallTotal} 項</div>
     </div>
     ${rows}
   </div>`;
