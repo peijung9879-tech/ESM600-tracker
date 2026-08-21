@@ -366,6 +366,10 @@
     display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));
     gap:14px; margin-bottom:22px;
   }
+  .dash-group-divider{
+    grid-column:1 / -1; height:0; border-top:2px dashed var(--line); margin:6px 0;
+  }
+  body.tv-mode .dash-group-divider{ border-top-color:#4a4f4c; margin:10px 0; }
   .dash-card{
     background:var(--panel); border:1px solid var(--line); border-radius:14px;
     padding:18px 20px; display:flex; flex-direction:column; gap:12px; cursor:pointer;
@@ -1000,6 +1004,8 @@ function statusLabel(s){
 const REVIEW_STATUS_OWNERS = ["阿澤"];
 // 主管：不顯示完成百分比與進度條（他們的角色是審核，不是自己執行）
 const SUPERVISOR_OWNERS = ["阿澤"];
+// 儀表板第一組（分隔線以上），其餘的人自動歸到第二組
+const GROUP1_OWNERS = ["阿澤", "Cloud", "姝涵", "敬中", "星元", "昶閔", "明勳", "嘉麟"];
 function statusOptionsHtml(i){
   const opts = [
     ['ok','已確認'], ['inprogress','進行中'], ['blocked','待前置完成'],
@@ -2052,7 +2058,7 @@ function renderDashboard(){
   }
   const el = document.getElementById('dashboardGrid');
   const countdownHtml = renderCountdownCardHtml();
-  el.innerHTML = countdownHtml + sorted.map(([name, items])=>{
+  const renderOwnerCard = ([name, items])=>{
     const total = items.length;
     const done = items.filter(i=>i.status==='ok').length;
     const pct = total ? Math.round(done/total*100) : 0;
@@ -2114,7 +2120,16 @@ function renderDashboard(){
       ${bodyBlocks.join('\n      ')}
       <div class="dash-meta">${isSupervisor ? `共 ${total} 項` : `已完成 ${done} / ${total} 項`}</div>
     </div>`;
-  }).join('');
+  };
+
+  const group1 = sorted.filter(([name]) => GROUP1_OWNERS.includes(name))
+    .sort((a,b) => GROUP1_OWNERS.indexOf(a[0]) - GROUP1_OWNERS.indexOf(b[0]));
+  const group2 = sorted.filter(([name]) => !GROUP1_OWNERS.includes(name));
+  const divider = (group1.length && group2.length) ? `<div class="dash-group-divider"></div>` : '';
+  el.innerHTML = countdownHtml
+    + group1.map(renderOwnerCard).join('')
+    + divider
+    + group2.map(renderOwnerCard).join('');
   el.querySelectorAll('.dash-card').forEach(c=>{
     if(!c.dataset.owner) return;
     c.onclick = ()=> setActiveOwner(c.dataset.owner);
