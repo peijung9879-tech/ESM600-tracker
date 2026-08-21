@@ -538,6 +538,13 @@
   .dash-card.featured .dash-next-due{ padding:16px 20px; max-height:220px; overflow:hidden; line-height:1.4; }
   .dash-card.featured .dash-next-due-label{ font-size:35px; font-weight:800; }
   .dash-card.featured .dash-next-due-content{ font-size:32px; }
+  /* 主管卡片：以「審核中」為主（大字），「最近到期」次要（小字，放不下就裁切） */
+  .dash-card.featured.supervisor .dash-review-label{ font-size:35px; }
+  .dash-card.featured.supervisor .dash-review-content{ font-size:32px; }
+  .dash-card.featured.supervisor .dash-review{ padding:16px 20px; line-height:1.4; }
+  .dash-card.featured.supervisor .dash-next-due-label{ font-size:24px; }
+  .dash-card.featured.supervisor .dash-next-due-content{ font-size:21px; }
+  .dash-card.featured.supervisor .dash-next-due{ padding:12px 16px; line-height:1.45; }
   .dash-card.featured .dash-meta{ font-size:13px; }
   .dash-card.minor{ padding:10px 12px; opacity:.7; }
   .dash-card.minor .dash-card-name{ font-size:12px; }
@@ -1020,7 +1027,7 @@ function applyMobilePage(){
     tlEl.style.display = currentView === 'timeline' ? 'block' : 'none';
   }
 }
-const PRIORITY_OWNERS = ["Cloud", "姝涵", "敬中", "星元", "明勳"];
+const PRIORITY_OWNERS = ["阿澤", "Cloud", "姝涵", "敬中", "星元", "明勳"];
 
 function filteredData(){
   return DATA.filter(d => currentFilter === "all" || d.status === currentFilter);
@@ -2097,14 +2104,14 @@ function renderDashboard(){
     const isSupervisor = SUPERVISOR_OWNERS.includes(name);
 
     if(isFeatured){
-      return `<div class="dash-card ${sizeClass}" data-owner="${name}">
+      return `<div class="dash-card ${sizeClass} ${isSupervisor ? 'supervisor' : ''}" data-owner="${name}">
       <div class="dash-card-head-featured">
         <div class="dash-card-name">${name}</div>
         ${isSupervisor ? '' : `<div class="dash-card-pct">${pct}%</div>`}
         <div class="dash-card-inprog-inline ${inprog.length ? '' : 'empty'}">${inprogHtml}</div>
       </div>
       ${isSupervisor ? '' : `<div class="dash-progress-track"><div class="dash-progress-fill" style="width:${pct}%"></div></div>`}
-      ${review.length ? reviewBlock : nextDueBlock}
+      ${isSupervisor ? (reviewBlock + nextDueBlock) : (review.length ? reviewBlock : nextDueBlock)}
       <div class="dash-meta">${isSupervisor ? `共 ${total} 項` : `已完成 ${done} / ${total} 項`}</div>
     </div>`;
     }
