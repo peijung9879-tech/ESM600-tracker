@@ -63,7 +63,7 @@
   .seg.urgent{ background:var(--red); }
   .seg.inprogress{ background:var(--blue); }
   .seg.blocked{ background:var(--lock); }
-  .seg.review{ background:#7a68b8; }
+  .seg.review{ background:#b13cc4; }
   .load-count{ font-family:var(--mono); font-size:12px; color:var(--ink-soft); text-align:right;}
 
   .legend{ display:flex; gap:16px; margin-top:10px; font-size:11px; color:var(--ink-soft);}
@@ -105,7 +105,7 @@
   .status-pill.pending{ background:var(--amber-soft); color:var(--amber); }
   .status-pill.ok{ background:var(--teal-soft); color:var(--teal); }
   .status-pill.urgent{ background:var(--red-soft); color:var(--red); }
-  .status-pill.review{ background:#e8e3f5; color:#5a4a9a; }
+  .status-pill.review{ background:#f3e4f7; color:#8e2f9e; }
   .deadline{ font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
   .followup{ font-size:12px; color:var(--ink-soft); white-space:pre-wrap;}
   .progress-cell{
@@ -306,7 +306,10 @@
     font-size:15px; font-weight:800; padding:5px 10px;
   }
   .status-select.blocked{ background:var(--lock-soft); color:var(--lock); }
-  .status-select.review{ background:#e8e3f5; color:#5a4a9a; font-weight:700; }
+  .status-select.review{
+    background:#f3e4f7; color:#8e2f9e;
+    font-size:15px; font-weight:800; padding:5px 10px;
+  }
   .status-select:focus{ outline:2px solid var(--teal); outline-offset:2px; }
   .co-owners{
     font-size:9.5px; color:var(--ink-soft); margin-top:4px; white-space:nowrap;
@@ -392,7 +395,7 @@
   }
   .dash-next-due.overdue{ color:var(--red); background:var(--red-soft); }
   .dash-review{
-    font-size:12px; font-weight:600; color:#5a4a9a; background:#e8e3f5;
+    font-size:12px; font-weight:600; color:#8e2f9e; background:#f3e4f7;
     border-radius:8px; padding:8px 10px; line-height:1.5;
   }
   .dash-card.featured .dash-review{ padding:16px 20px; max-height:220px; overflow:hidden; line-height:1.4; }
@@ -430,7 +433,7 @@
     background:#f0dfc9; color:#8a5a1e; margin-left:6px; vertical-align:middle; white-space:nowrap;
   }
   .bom-badge.blocked{ background:var(--lock-soft); color:var(--lock); }
-  .bom-badge.review{ background:#e8e3f5; color:#5a4a9a; }
+  .bom-badge.review{ background:#f3e4f7; color:#8e2f9e; }
 
   /* --- TV mode --- */
   body.tv-mode{
@@ -667,7 +670,7 @@
       <span><i class="dot" style="background:var(--teal)"></i>已確認 / 有明確期限</span>
       <span><i class="dot" style="background:var(--blue)"></i>進行中</span>
       <span><i class="dot" style="background:var(--lock)"></i>待前置完成</span>
-      <span><i class="dot" style="background:#7a68b8"></i>審核中</span>
+      <span><i class="dot" style="background:#b13cc4"></i>審核中</span>
       <span><i class="dot" style="background:var(--amber)"></i>待確認 / 討論中</span>
       <span><i class="dot" style="background:var(--red)"></i>急件 / 需立即處理</span>
     </div>
@@ -995,6 +998,8 @@ function statusLabel(s){
 
 // 只有這些負責人的項目，狀態下拉選單才會多出「審核中」選項
 const REVIEW_STATUS_OWNERS = ["阿澤"];
+// 主管：不顯示完成百分比與進度條（他們的角色是審核，不是自己執行）
+const SUPERVISOR_OWNERS = ["阿澤"];
 function statusOptionsHtml(i){
   const opts = [
     ['ok','已確認'], ['inprogress','進行中'], ['blocked','待前置完成'],
@@ -1981,7 +1986,7 @@ function daysUntil(dateStr){
 function renderCountdownCardHtml(){
   const sizeClass = tvMode ? 'featured' : '';
   // 整體完成率：只計算儀表板上有顯示的負責人（排除 DASHBOARD_EXCLUDED_OWNERS）
-  const counted = DATA.filter(d => getActionOwners(d).some(o => !DASHBOARD_EXCLUDED_OWNERS.includes(o)));
+  const counted = DATA.filter(d => getActionOwners(d).some(o => !DASHBOARD_EXCLUDED_OWNERS.includes(o) && !SUPERVISOR_OWNERS.includes(o)));
   const overallTotal = counted.length;
   const overallDone = counted.filter(d => d.status === 'ok').length;
   const overallPct = overallTotal ? Math.round(overallDone / overallTotal * 100) : 0;
@@ -2084,16 +2089,18 @@ function renderDashboard(){
       ? `<div class="dash-review"><span class="dash-review-label">🟪 審核中（${review.length}）：</span><span class="dash-review-content">${reviewShown.join('、')}${reviewRest > 0 ? `…等 ${reviewRest} 項` : ''}</span></div>`
       : '';
 
+    const isSupervisor = SUPERVISOR_OWNERS.includes(name);
+
     if(isFeatured){
       return `<div class="dash-card ${sizeClass}" data-owner="${name}">
       <div class="dash-card-head-featured">
         <div class="dash-card-name">${name}</div>
-        <div class="dash-card-pct">${pct}%</div>
+        ${isSupervisor ? '' : `<div class="dash-card-pct">${pct}%</div>`}
         <div class="dash-card-inprog-inline ${inprog.length ? '' : 'empty'}">${inprogHtml}</div>
       </div>
-      <div class="dash-progress-track"><div class="dash-progress-fill" style="width:${pct}%"></div></div>
+      ${isSupervisor ? '' : `<div class="dash-progress-track"><div class="dash-progress-fill" style="width:${pct}%"></div></div>`}
       ${review.length ? reviewBlock : nextDueBlock}
-      <div class="dash-meta">已完成 ${done} / ${total} 項</div>
+      <div class="dash-meta">${isSupervisor ? `共 ${total} 項` : `已完成 ${done} / ${total} 項`}</div>
     </div>`;
     }
 
@@ -2101,11 +2108,11 @@ function renderDashboard(){
     return `<div class="dash-card ${sizeClass}" data-owner="${name}">
       <div class="dash-card-head">
         <div class="dash-card-name">${name}</div>
-        <div class="dash-card-pct">${pct}%</div>
+        ${isSupervisor ? '' : `<div class="dash-card-pct">${pct}%</div>`}
       </div>
-      <div class="dash-progress-track"><div class="dash-progress-fill" style="width:${pct}%"></div></div>
+      ${isSupervisor ? '' : `<div class="dash-progress-track"><div class="dash-progress-fill" style="width:${pct}%"></div></div>`}
       ${bodyBlocks.join('\n      ')}
-      <div class="dash-meta">已完成 ${done} / ${total} 項</div>
+      <div class="dash-meta">${isSupervisor ? `共 ${total} 項` : `已完成 ${done} / ${total} 項`}</div>
     </div>`;
   }).join('');
   el.querySelectorAll('.dash-card').forEach(c=>{
