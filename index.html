@@ -63,6 +63,7 @@
   .seg.urgent{ background:var(--red); }
   .seg.inprogress{ background:var(--blue); }
   .seg.blocked{ background:var(--lock); }
+  .seg.review{ background:#7a68b8; }
   .load-count{ font-family:var(--mono); font-size:12px; color:var(--ink-soft); text-align:right;}
 
   .legend{ display:flex; gap:16px; margin-top:10px; font-size:11px; color:var(--ink-soft);}
@@ -104,6 +105,7 @@
   .status-pill.pending{ background:var(--amber-soft); color:var(--amber); }
   .status-pill.ok{ background:var(--teal-soft); color:var(--teal); }
   .status-pill.urgent{ background:var(--red-soft); color:var(--red); }
+  .status-pill.review{ background:#e8e3f5; color:#5a4a9a; }
   .deadline{ font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
   .followup{ font-size:12px; color:var(--ink-soft); white-space:pre-wrap;}
   .progress-cell{
@@ -304,6 +306,7 @@
     font-size:15px; font-weight:800; padding:5px 10px;
   }
   .status-select.blocked{ background:var(--lock-soft); color:var(--lock); }
+  .status-select.review{ background:#e8e3f5; color:#5a4a9a; font-weight:700; }
   .status-select:focus{ outline:2px solid var(--teal); outline-offset:2px; }
   .co-owners{
     font-size:9.5px; color:var(--ink-soft); margin-top:4px; white-space:nowrap;
@@ -419,6 +422,7 @@
     background:#f0dfc9; color:#8a5a1e; margin-left:6px; vertical-align:middle; white-space:nowrap;
   }
   .bom-badge.blocked{ background:var(--lock-soft); color:var(--lock); }
+  .bom-badge.review{ background:#e8e3f5; color:#5a4a9a; }
 
   /* --- TV mode --- */
   body.tv-mode{
@@ -466,6 +470,23 @@
   /* --- 倒數計時卡片 --- */
   .countdown-card{ border-color:var(--lock); background:var(--lock-soft); }
   .countdown-card .dash-card-name{ color:var(--lock); }
+  .countdown-overall{
+    background:#fff; border-radius:8px; padding:10px 12px; margin-top:10px;
+    border-left:4px solid var(--teal);
+  }
+  .countdown-overall-head{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .countdown-overall-label{ font-size:12px; font-weight:700; color:var(--ink-soft); }
+  .countdown-overall-pct{ font-size:24px; font-weight:800; color:var(--teal); font-family:var(--mono); }
+  .countdown-overall-track{
+    height:8px; background:var(--line); border-radius:5px; overflow:hidden; margin-top:6px;
+  }
+  .countdown-overall-fill{ height:100%; background:var(--teal); border-radius:5px; transition:width .4s ease; }
+  .countdown-overall-meta{ font-size:10.5px; color:var(--ink-soft); font-family:var(--mono); margin-top:5px; }
+  .dash-card.countdown-card.featured .countdown-overall{ padding:12px 14px; margin-top:8px; }
+  .dash-card.countdown-card.featured .countdown-overall-label{ font-size:18px; }
+  .dash-card.countdown-card.featured .countdown-overall-pct{ font-size:36px; }
+  .dash-card.countdown-card.featured .countdown-overall-track{ height:12px; }
+  .dash-card.countdown-card.featured .countdown-overall-meta{ font-size:14px; }
   .countdown-row{
     background:#fff; border-radius:8px; padding:10px 12px; margin-top:10px;
   }
@@ -487,11 +508,11 @@
   }
   .countdown-edit-btn:hover{ background:var(--lock); color:#fff; }
   .countdown-card .dash-card-head{ display:flex; align-items:center; gap:10px; }
-  .dash-card.countdown-card.featured .countdown-label-text{ font-size:20px; }
+  .dash-card.countdown-card.featured .countdown-label-text{ font-size:17px; }
   .dash-card.countdown-card.featured .countdown-date-text{ font-size:17px; }
-  .dash-card.countdown-card.featured .countdown-days{ font-size:32px; }
+  .dash-card.countdown-card.featured .countdown-days{ font-size:26px; }
   .dash-card.countdown-card.featured .dash-card-name{ font-size:26px; }
-  .dash-card.countdown-card.featured .countdown-owner-line{ font-size:32px; }
+  .dash-card.countdown-card.featured .countdown-owner-line{ font-size:26px; }
   .dash-card.countdown-card.featured .countdown-edit-btn{ font-size:14px; padding:4px 12px; }
   .dash-card.countdown-card.featured{ padding:20px 24px; }
   .dash-card.countdown-card.featured .dash-card-head{ margin-bottom:6px; }
@@ -637,6 +658,7 @@
       <span><i class="dot" style="background:var(--teal)"></i>已確認 / 有明確期限</span>
       <span><i class="dot" style="background:var(--blue)"></i>進行中</span>
       <span><i class="dot" style="background:var(--lock)"></i>待前置完成</span>
+      <span><i class="dot" style="background:#7a68b8"></i>審核中</span>
       <span><i class="dot" style="background:var(--amber)"></i>待確認 / 討論中</span>
       <span><i class="dot" style="background:var(--red)"></i>急件 / 需立即處理</span>
     </div>
@@ -664,6 +686,7 @@
           <option value="pending">待確認</option>
           <option value="inprogress">進行中</option>
           <option value="blocked">待前置完成</option>
+          <option value="review">審核中</option>
           <option value="ok">已確認</option>
         </select>
       </div>
@@ -958,7 +981,22 @@ async function persistHistory(){
 }
 
 function statusLabel(s){
-  return {ok:"已確認", pending:"待確認", inprogress:"進行中", blocked:"待前置完成", urgent:"急件"}[s] || "未定";
+  return {ok:"已確認", pending:"待確認", inprogress:"進行中", blocked:"待前置完成", urgent:"急件", review:"審核中"}[s] || "未定";
+}
+
+// 只有這些負責人的項目，狀態下拉選單才會多出「審核中」選項
+const REVIEW_STATUS_OWNERS = ["阿澤"];
+function statusOptionsHtml(i){
+  const opts = [
+    ['ok','已確認'], ['inprogress','進行中'], ['blocked','待前置完成'],
+    ['pending','待確認'], ['urgent','急件']
+  ];
+  if(REVIEW_STATUS_OWNERS.includes(i.followup) || i.status === 'review'){
+    opts.push(['review','審核中']);
+  }
+  return opts.map(([v,label]) =>
+    `<option value="${v}" ${i.status===v?'selected':''}>${label}</option>`
+  ).join('');
 }
 
 let currentFilter = "all";
@@ -1018,7 +1056,7 @@ function renderLoadBars(){
   DATA.forEach(d=>{
     getActionOwners(d).forEach(o=>{
       if(DASHBOARD_EXCLUDED_OWNERS.includes(o)) return;
-      if(!owners[o]) owners[o] = {ok:0,pending:0,urgent:0,inprogress:0,blocked:0,total:0,items:[]};
+      if(!owners[o]) owners[o] = {ok:0,pending:0,urgent:0,inprogress:0,blocked:0,review:0,total:0,items:[]};
       owners[o][d.status] = (owners[o][d.status]||0)+1;
       owners[o].total++;
       owners[o].items.push(d);
@@ -1027,7 +1065,7 @@ function renderLoadBars(){
   const sorted = Object.entries(owners).sort((a,b)=>b[1].total-a[1].total);
   const el = document.getElementById('loadBars');
   el.innerHTML = sorted.map(([name, c])=>{
-    const pctOk = c.ok/c.total*100, pctPend = c.pending/c.total*100, pctUrg = c.urgent/c.total*100, pctProg = c.inprogress/c.total*100, pctBlocked = c.blocked/c.total*100;
+    const pctOk = c.ok/c.total*100, pctPend = c.pending/c.total*100, pctUrg = c.urgent/c.total*100, pctProg = c.inprogress/c.total*100, pctBlocked = c.blocked/c.total*100, pctReview = (c.review||0)/c.total*100;
     const isActive = activeOwner === name ? "active" : "";
     const inprogItems = c.items.filter(i=>i.status==='inprogress');
     const inprogNote = inprogItems.length
@@ -1044,6 +1082,7 @@ function renderLoadBars(){
           <div class="seg urgent" style="width:${pctUrg}%"></div>
           <div class="seg pending" style="width:${pctPend}%"></div>
           <div class="seg blocked" style="width:${pctBlocked}%"></div>
+          <div class="seg review" style="width:${pctReview}%"></div>
           <div class="seg inprogress" style="width:${pctProg}%"></div>
           <div class="seg ok" style="width:${pctOk}%"></div>
         </div>
@@ -1139,11 +1178,7 @@ function renderOwnerView(){
               <td><span class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="未命名" data-id="${i.id}" data-field="name">${i.name || ""}</span>${i.appearance ? '<span class="exterior-tag">🎨 外觀</span>' : ''}</td>
               <td>
                 <select class="status-select ${i.status}" data-id="${i.id}">
-                  <option value="ok" ${i.status==='ok'?'selected':''}>已確認</option>
-                  <option value="inprogress" ${i.status==='inprogress'?'selected':''}>進行中</option>
-                  <option value="blocked" ${i.status==='blocked'?'selected':''}>待前置完成</option>
-                  <option value="pending" ${i.status==='pending'?'selected':''}>待確認</option>
-                  <option value="urgent" ${i.status==='urgent'?'selected':''}>急件</option>
+                  ${statusOptionsHtml(i)}
                 </select>
                 ${coOwnersHtml(i)}
               </td>
@@ -1211,11 +1246,7 @@ function renderRawView(){
             <td><span class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="未命名" data-id="${i.id}" data-field="name">${i.name || ""}</span>${i.appearance ? '<span class="exterior-tag">🎨 外觀</span>' : ''}</td>
             <td>
               <select class="status-select ${i.status}" data-id="${i.id}">
-                <option value="ok" ${i.status==='ok'?'selected':''}>已確認</option>
-                <option value="inprogress" ${i.status==='inprogress'?'selected':''}>進行中</option>
-                <option value="blocked" ${i.status==='blocked'?'selected':''}>待前置完成</option>
-                <option value="pending" ${i.status==='pending'?'selected':''}>待確認</option>
-                <option value="urgent" ${i.status==='urgent'?'selected':''}>急件</option>
+                ${statusOptionsHtml(i)}
               </select>
               ${coOwnersHtml(i)}
             </td>
@@ -1940,6 +1971,11 @@ function daysUntil(dateStr){
 
 function renderCountdownCardHtml(){
   const sizeClass = tvMode ? 'featured' : '';
+  // 整體完成率：只計算儀表板上有顯示的負責人（排除 DASHBOARD_EXCLUDED_OWNERS）
+  const counted = DATA.filter(d => getActionOwners(d).some(o => !DASHBOARD_EXCLUDED_OWNERS.includes(o)));
+  const overallTotal = counted.length;
+  const overallDone = counted.filter(d => d.status === 'ok').length;
+  const overallPct = overallTotal ? Math.round(overallDone / overallTotal * 100) : 0;
   const rows = ['A', 'B'].map(key=>{
     const t = COUNTDOWN_TARGETS[key] || { date: '', label: '', owner: '' };
     const days = daysUntil(t.date);
@@ -1965,6 +2001,14 @@ function renderCountdownCardHtml(){
     <div class="dash-card-head">
       <div class="dash-card-name">⏳ 倒數計時</div>
       <button class="countdown-edit-btn" id="countdownEditBtn" title="編輯倒數計時目標">✏️ 編輯</button>
+    </div>
+    <div class="countdown-overall">
+      <div class="countdown-overall-head">
+        <span class="countdown-overall-label">整體完成率</span>
+        <span class="countdown-overall-pct">${overallPct}%</span>
+      </div>
+      <div class="countdown-overall-track"><div class="countdown-overall-fill" style="width:${overallPct}%"></div></div>
+      <div class="countdown-overall-meta">已完成 ${overallDone} / ${overallTotal} 項</div>
     </div>
     ${rows}
   </div>`;
