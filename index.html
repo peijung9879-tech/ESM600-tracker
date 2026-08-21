@@ -391,6 +391,14 @@
     border-radius:8px; padding:8px 10px; line-height:1.5;
   }
   .dash-next-due.overdue{ color:var(--red); background:var(--red-soft); }
+  .dash-review{
+    font-size:12px; font-weight:600; color:#5a4a9a; background:#e8e3f5;
+    border-radius:8px; padding:8px 10px; line-height:1.5;
+  }
+  .dash-card.featured .dash-review{ padding:16px 20px; max-height:220px; overflow:hidden; line-height:1.4; }
+  .dash-card.featured .dash-review-label{ font-size:35px; font-weight:800; }
+  .dash-card.featured .dash-review-content{ font-size:32px; }
+  .dash-card.minor .dash-review{ font-size:9.5px; padding:3px 6px; line-height:1.3; }
   .dash-meta{ font-size:11px; color:var(--ink-soft); font-family:var(--mono); }
 
   /* --- BOM hierarchy view --- */
@@ -589,6 +597,7 @@
   body.mobile-mode .dash-progress-track{ height:5px; }
   body.mobile-mode .dash-inprogress,
   body.mobile-mode .dash-blocked,
+  body.mobile-mode .dash-review,
   body.mobile-mode .dash-next-due{
     font-size:9.5px; padding:4px 6px; min-height:auto; line-height:1.3;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -1069,11 +1078,11 @@ function renderLoadBars(){
     const isActive = activeOwner === name ? "active" : "";
     const inprogItems = c.items.filter(i=>i.status==='inprogress');
     const inprogNote = inprogItems.length
-      ? `<div class="load-inprogress-note">🔵 進行中 ${Math.round(pctProg)}%：${inprogItems.map(i=>`${i.partId}．${i.name}`).join('、')}</div>`
+      ? `<div class="load-inprogress-note">🔵 進行中 ${Math.round(pctProg)}%：${inprogItems.map(i=>i.name).join('、')}</div>`
       : '';
     const nextDueList = getNextDeadlineItems(c.items, 3);
     const nextDueNote = nextDueList.length
-      ? `<div class="load-next-due-note ${nextDueList[0].overdue ? 'overdue' : ''}">${nextDueList[0].overdue ? '🔴' : '📅'} 最近到期：${nextDueList.map(n=>`${n.date.getMonth()+1}/${n.date.getDate()}．${n.item.partId}．${n.item.name}`).join('、')}</div>`
+      ? `<div class="load-next-due-note ${nextDueList[0].overdue ? 'overdue' : ''}">${nextDueList[0].overdue ? '🔴' : '📅'} 最近到期：${nextDueList.map(n=>`${n.date.getMonth()+1}/${n.date.getDate()}．${n.item.name}`).join('、')}</div>`
       : '';
     return `<div class="load-row-wrap">
       <div class="load-row">
@@ -1818,7 +1827,7 @@ function renderPersonalPanel(){
   const pct = total ? Math.round(done / total * 100) : 0;
   const inprogItems = items.filter(d => d.status === 'inprogress');
   const inprogText = inprogItems.length
-    ? inprogItems.map(d => `${d.partId}．${d.name}`).join('、')
+    ? inprogItems.map(d => d.name).join('、')
     : '目前沒有進行中的項目';
   el.innerHTML = `
     <div class="personal-panel-title">${activeOwner} 的進度</div>
@@ -2045,7 +2054,7 @@ function renderDashboard(){
     const inprog = items.filter(i=>i.status==='inprogress');
     const isFeatured = tvMode && PRIORITY_OWNERS.includes(name);
     const INPROG_SHOW_LIMIT = isFeatured ? 3 : Infinity;
-    const inprogNames = inprog.map(i=>`${i.partId}．${i.name}`);
+    const inprogNames = inprog.map(i=>i.name);
     const inprogShown = inprogNames.slice(0, INPROG_SHOW_LIMIT);
     const inprogRest = inprogNames.length - inprogShown.length;
     const inprogHtml = inprog.length
@@ -2057,13 +2066,23 @@ function renderDashboard(){
       : '';
     const nextDueList = getNextDeadlineItems(items, 3);
     const nextDueHtml = nextDueList.length
-      ? `<span class="dash-next-due-label">${nextDueList[0].overdue ? '🔴' : '📅'} 最近到期：</span><span class="dash-next-due-content">${nextDueList.map(n=>`${n.date.getMonth()+1}/${n.date.getDate()}．${n.item.partId}．${n.item.name}`).join('、')}</span>`
+      ? `<span class="dash-next-due-label">${nextDueList[0].overdue ? '🔴' : '📅'} 最近到期：</span><span class="dash-next-due-content">${nextDueList.map(n=>`${n.date.getMonth()+1}/${n.date.getDate()}．${n.item.name}`).join('、')}</span>`
       : '';
     const isMinor = tvMode && !isFeatured;
     const sizeClass = isFeatured ? 'featured' : (isMinor ? 'minor' : '');
     const nextDueBlock = nextDueList.length ? `<div class="dash-next-due ${nextDueList[0].overdue ? 'overdue' : ''}">${nextDueHtml}</div>` : '';
     const inprogBlock = `<div class="dash-inprogress ${inprog.length ? '' : 'empty'}">${inprogHtml}</div>`;
     const blockedBlock = (blocked.length && !tvMode) ? `<div class="dash-blocked">${blockedHtml}</div>` : '';
+
+    // 審核中項目：有的話就主要顯示這些（例如阿澤）
+    const review = items.filter(i=>i.status==='review');
+    const REVIEW_SHOW_LIMIT = isFeatured ? 3 : Infinity;
+    const reviewNames = review.map(i=>i.name);
+    const reviewShown = reviewNames.slice(0, REVIEW_SHOW_LIMIT);
+    const reviewRest = reviewNames.length - reviewShown.length;
+    const reviewBlock = review.length
+      ? `<div class="dash-review"><span class="dash-review-label">🟪 審核中（${review.length}）：</span><span class="dash-review-content">${reviewShown.join('、')}${reviewRest > 0 ? `…等 ${reviewRest} 項` : ''}</span></div>`
+      : '';
 
     if(isFeatured){
       return `<div class="dash-card ${sizeClass}" data-owner="${name}">
@@ -2073,12 +2092,12 @@ function renderDashboard(){
         <div class="dash-card-inprog-inline ${inprog.length ? '' : 'empty'}">${inprogHtml}</div>
       </div>
       <div class="dash-progress-track"><div class="dash-progress-fill" style="width:${pct}%"></div></div>
-      ${nextDueBlock}
+      ${review.length ? reviewBlock : nextDueBlock}
       <div class="dash-meta">已完成 ${done} / ${total} 項</div>
     </div>`;
     }
 
-    const bodyBlocks = [inprogBlock, blockedBlock, nextDueBlock];
+    const bodyBlocks = [reviewBlock, inprogBlock, blockedBlock, nextDueBlock];
     return `<div class="dash-card ${sizeClass}" data-owner="${name}">
       <div class="dash-card-head">
         <div class="dash-card-name">${name}</div>
