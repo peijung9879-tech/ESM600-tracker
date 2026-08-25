@@ -142,6 +142,41 @@
   }
   .todo-group-name{ font-size:13px; font-weight:700; color:var(--teal); }
   .todo-group-count{ font-family:var(--mono); font-size:10.5px; color:var(--ink-soft); }
+
+  /* --- 待辦事項時程表 --- */
+  .todo-timeline-panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:18px 20px; margin-top:16px;
+  }
+  .todo-timeline-head{ font-size:14px; font-weight:700; color:var(--ink); margin-bottom:8px; }
+  .todo-timeline-legend{ display:flex; gap:14px; font-size:11px; color:var(--ink-soft); margin-bottom:14px; }
+  .todo-timeline-legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .todo-tl-track{ position:relative; padding-left:20px; border-left:2px solid var(--line); margin-left:6px; }
+  .todo-tl-row{ position:relative; padding-bottom:16px; }
+  .todo-tl-row:last-child{ padding-bottom:0; }
+  .todo-tl-dot{
+    position:absolute; left:-27px; top:3px; width:11px; height:11px; border-radius:50%;
+    background:var(--ink-soft); border:2px solid var(--panel); box-shadow:0 0 0 1px var(--line);
+  }
+  .todo-tl-row.overdue .todo-tl-dot{ background:var(--red); box-shadow:0 0 0 1px var(--red); }
+  .todo-tl-row.soon .todo-tl-dot{ background:var(--amber); box-shadow:0 0 0 1px var(--amber); }
+  .todo-tl-row.later .todo-tl-dot{ background:var(--teal); box-shadow:0 0 0 1px var(--teal); }
+  .todo-tl-date{
+    font-family:var(--mono); font-size:13px; font-weight:700; color:var(--ink);
+    display:flex; align-items:baseline; gap:8px; margin-bottom:5px;
+  }
+  .todo-tl-row.overdue .todo-tl-date{ color:var(--red); }
+  .todo-tl-row.soon .todo-tl-date{ color:var(--amber); }
+  .todo-tl-row.later .todo-tl-date{ color:var(--teal); }
+  .todo-tl-row.nodate .todo-tl-date{ color:var(--ink-soft); }
+  .todo-tl-tip{ font-family:var(--sans); font-size:10.5px; font-weight:600; color:var(--ink-soft); }
+  .todo-tl-items{ display:flex; flex-direction:column; gap:4px; }
+  .todo-tl-item{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    background:#fbfaf7; border:1px solid var(--line); border-radius:6px; padding:6px 9px;
+  }
+  .todo-tl-text{ font-size:12.5px; color:var(--ink); }
+  .todo-tl-owner{ font-size:11px; font-weight:600; color:var(--teal); }
   .todo-empty{ font-size:12.5px; color:var(--ink-soft); font-style:italic; padding:10px 4px; }
   th{
     text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
@@ -1122,6 +1157,70 @@ async function clearDoneTodos(){
   showToast('已清除已完成事項，已同步到共用雲端');
 }
 
+function renderTodoTimelineHtml(){
+  const now = new Date();
+  now.setHours(0,0,0,0);
+  const withDates = [];
+  const noDates = [];
+  TODOS.filter(t=>!t.done).forEach(t=>{
+    const d = t.due ? parseDeadline(t.due) : null;
+    if(d) withDates.push({ todo: t, date: d });
+    else noDates.push(t);
+  });
+  if(!withDates.length && !noDates.length){
+    return '';
+  }
+  withDates.sort((a,b)=>a.date - b.date);
+
+  // 依日期分組
+  const dateMap = {};
+  const order = [];
+  withDates.forEach(x=>{
+    const key = x.date.toDateString();
+    if(!dateMap[key]){ dateMap[key] = { date: x.date, items: [] }; order.push(key); }
+    dateMap[key].items.push(x.todo);
+  });
+
+  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+  const rowsHtml = order.map(key=>{
+    const b = dateMap[key];
+    const days = Math.round((b.date - now) / 86400000);
+    let cls = 'later', tip = `剩 ${days} 天`;
+    if(days < 0){ cls = 'overdue'; tip = `已過期 ${Math.abs(days)} 天`; }
+    else if(days === 0){ cls = 'soon'; tip = '就是今天'; }
+    else if(days <= 7){ cls = 'soon'; }
+    return `
+      <div class="todo-tl-row ${cls}">
+        <div class="todo-tl-dot"></div>
+        <div class="todo-tl-date">${fmt(b.date)}<span class="todo-tl-tip">${tip}</span></div>
+        <div class="todo-tl-items">
+          ${b.items.map(t=>`<div class="todo-tl-item"><span class="todo-tl-text">${t.text}</span><span class="todo-tl-owner">👤 ${t.owner || '未指派'}</span></div>`).join('')}
+        </div>
+      </div>`;
+  }).join('');
+
+  const noDateHtml = noDates.length ? `
+    <div class="todo-tl-row nodate">
+      <div class="todo-tl-dot"></div>
+      <div class="todo-tl-date">未定<span class="todo-tl-tip">沒填期限</span></div>
+      <div class="todo-tl-items">
+        ${noDates.map(t=>`<div class="todo-tl-item"><span class="todo-tl-text">${t.text}</span><span class="todo-tl-owner">👤 ${t.owner || '未指派'}</span></div>`).join('')}
+      </div>
+    </div>` : '';
+
+  return `
+    <div class="todo-timeline-panel">
+      <div class="todo-timeline-head">🗓 待辦事項時程表（只顯示未完成）</div>
+      <div class="todo-timeline-legend">
+        <span><i class="dot" style="background:var(--red)"></i>已過期</span>
+        <span><i class="dot" style="background:var(--amber)"></i>7天內</span>
+        <span><i class="dot" style="background:var(--teal)"></i>之後</span>
+        <span><i class="dot" style="background:var(--ink-soft)"></i>未定</span>
+      </div>
+      <div class="todo-tl-track">${rowsHtml}${noDateHtml}</div>
+    </div>`;
+}
+
 function renderTodoView(){
   const el = document.getElementById('todoView');
   if(!el) return;
@@ -1199,7 +1298,8 @@ function renderTodoView(){
         <button class="save-btn" id="addTodoBtn">＋ 新增</button>
       </div>
       ${TODOS.length ? groupsHtml : '<div class="todo-empty">目前還沒有任何待辦事項，從上方新增一筆吧 🎉</div>'}
-    </div>`;
+    </div>
+    ${renderTodoTimelineHtml()}`;
 
   const addBtn = document.getElementById('addTodoBtn');
   if(addBtn) addBtn.onclick = addTodo;
