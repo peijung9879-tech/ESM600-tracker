@@ -169,6 +169,33 @@
   .todo-group-name{ font-size:13px; font-weight:700; color:var(--teal); }
   .todo-group-count{ font-family:var(--mono); font-size:12px; color:var(--ink-soft); }
 
+  /* --- 每日例行事項 --- */
+  .todo-head-btns{ display:flex; gap:8px; }
+  .todo-daily-label{
+    display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:600;
+    color:var(--blue); background:var(--blue-soft); border:1px solid var(--blue);
+    border-radius:6px; padding:0 10px; cursor:pointer; white-space:nowrap; flex:0 0 auto;
+  }
+  .todo-daily-label input{ cursor:pointer; accent-color:var(--blue); }
+  .todo-daily-badge{
+    font-size:11px; font-weight:700; color:var(--blue); background:var(--blue-soft);
+    border-radius:20px; padding:2px 8px; flex:0 0 auto; white-space:nowrap;
+  }
+  .todo-row.daily{ background:rgba(47,95,168,.04); }
+  .todo-daily-box{
+    background:var(--blue-soft); border:1px solid var(--blue); border-radius:8px;
+    padding:12px 14px; margin-bottom:14px;
+  }
+  .todo-daily-title{ font-size:12.5px; font-weight:700; color:var(--blue); margin-bottom:8px; }
+  .todo-daily-items{ display:flex; flex-wrap:wrap; gap:8px; }
+  .todo-daily-chip{
+    display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600;
+    background:#fff; border:1px solid var(--blue); color:var(--ink);
+    border-radius:20px; padding:5px 12px;
+  }
+  .todo-daily-chip.done{ opacity:.5; text-decoration:line-through; }
+  .todo-daily-owner{ font-size:11px; font-weight:600; color:var(--teal); }
+
   /* --- 待辦事項時程表 --- */
   .todo-timeline-panel{
     background:var(--panel); border:1px solid var(--line); border-radius:10px;
@@ -1130,27 +1157,42 @@ async function addTodo(){
   const input = document.getElementById('newTodoText');
   const dueInput = document.getElementById('newTodoDue');
   const ownerInput = document.getElementById('newTodoOwner');
+  const dailyInput = document.getElementById('newTodoDaily');
   const text = input.value.trim();
   if(!text){
     input.focus();
     showToast('⚠️ 請先輸入內容');
     return;
   }
+  const isDaily = dailyInput ? dailyInput.checked : false;
   TODOS.push({
     id: `todo-${Date.now().toString().slice(-8)}`,
     text,
     owner: ownerInput ? ownerInput.value.trim() : '',
-    due: dueInput ? dueInput.value.trim() : '',
+    due: isDaily ? '' : (dueInput ? dueInput.value.trim() : ''),  // 每日事項不設期限
+    daily: isDaily,
     done: false,
     time: new Date().toLocaleString('zh-TW', {hour12:false})
   });
   input.value = '';
   if(dueInput) dueInput.value = '';
   if(ownerInput) ownerInput.value = '';
+  if(dailyInput) dailyInput.checked = false;
   showToast('新增中…');
   await persistTodos();
   renderTodoView();
-  showToast('已新增待辦事項，已同步到共用雲端');
+  showToast(isDaily ? '已新增每日事項，已同步到共用雲端' : '已新增待辦事項，已同步到共用雲端');
+}
+
+async function resetDailyTodos(){
+  const n = TODOS.filter(t=>t.daily && t.done).length;
+  if(!n){ showToast('目前沒有已勾選的每日事項'); return; }
+  if(!confirm(`確定要把 ${n} 筆每日事項重設成未完成嗎？（用於新的一天重新開始）`)) return;
+  TODOS.forEach(t=>{ if(t.daily){ t.done = false; t.doneDate = ''; } });
+  showToast('重設中…');
+  await persistTodos();
+  renderTodoView();
+  showToast('已重設每日事項，已同步到共用雲端');
 }
 
 async function updateTodoOwner(id, newOwner){
@@ -1229,10 +1271,10 @@ async function deleteTodo(id){
 }
 
 async function clearDoneTodos(){
-  const doneCount = TODOS.filter(t=>t.done).length;
-  if(!doneCount){ showToast('目前沒有已完成的事項'); return; }
-  if(!confirm(`確定要清除 ${doneCount} 筆已完成的事項嗎？`)) return;
-  TODOS = TODOS.filter(t=>!t.done);
+  const doneCount = TODOS.filter(t=>t.done && !t.daily).length;
+  if(!doneCount){ showToast('目前沒有可清除的已完成事項（每日事項不會被清除）'); return; }
+  if(!confirm(`確定要清除 ${doneCount} 筆已完成的事項嗎？（每日事項會保留）`)) return;
+  TODOS = TODOS.filter(t=>!t.done || t.daily);
   showToast('清除中…');
   await persistTodos();
   renderTodoView();
@@ -1310,12 +1352,13 @@ function renderTodoTimelineHtml(){
   now.setHours(0,0,0,0);
   const withDates = [];
   const noDates = [];
-  TODOS.filter(t=>!t.done).forEach(t=>{
+  const dailyItems = TODOS.filter(t=>t.daily);   // 每日事項獨立處理，不進日期軸
+  TODOS.filter(t=>!t.done && !t.daily).forEach(t=>{
     const d = t.due ? parseDeadline(t.due) : null;
     if(d) withDates.push({ todo: t, date: d });
     else noDates.push(t);
   });
-  if(!withDates.length && !noDates.length){
+  if(!withDates.length && !noDates.length && !dailyItems.length){
     return '';
   }
   withDates.sort((a,b)=>a.date - b.date);
@@ -1356,16 +1399,29 @@ function renderTodoTimelineHtml(){
       </div>
     </div>` : '';
 
+  const dailyHtml = dailyItems.length ? `
+    <div class="todo-daily-box">
+      <div class="todo-daily-title">🔁 每日例行（不列入日期軸）</div>
+      <div class="todo-daily-items">
+        ${dailyItems.map(t=>`<div class="todo-daily-chip ${t.done ? 'done' : ''}">${t.done ? '✅' : '⬜'} ${t.text}<span class="todo-daily-owner">${t.owner || '未指派'}</span></div>`).join('')}
+      </div>
+    </div>` : '';
+
+  const trackHtml = (rowsHtml || noDateHtml)
+    ? `<div class="todo-tl-track">${rowsHtml}${noDateHtml}</div>`
+    : `<div class="todo-empty">目前沒有設定日期的待辦事項</div>`;
+
   return `
     <div class="todo-timeline-panel">
       <div class="todo-timeline-head">🗓 待辦事項時程表（只顯示未完成）</div>
+      ${dailyHtml}
       <div class="todo-timeline-legend">
         <span><i class="dot" style="background:var(--red)"></i>已過期</span>
         <span><i class="dot" style="background:var(--amber)"></i>7天內</span>
         <span><i class="dot" style="background:var(--teal)"></i>之後</span>
         <span><i class="dot" style="background:var(--ink-soft)"></i>未定</span>
       </div>
-      <div class="todo-tl-track">${rowsHtml}${noDateHtml}</div>
+      ${trackHtml}
     </div>`;
 }
 
@@ -1383,11 +1439,12 @@ function renderTodoView(){
       ? (days < 0 ? `（已過期 ${Math.abs(days)} 天）` : days === 0 ? '（今天）' : `（剩 ${days} 天）`)
       : '';
     return `
-    <div class="todo-row ${t.done ? 'done' : ''}">
+    <div class="todo-row ${t.done ? 'done' : ''} ${t.daily ? 'daily' : ''}">
       <input type="checkbox" class="todo-check" data-todo-id="${t.id}" ${t.done ? 'checked' : ''}>
       <span class="todo-text editable" contenteditable="true" spellcheck="false" data-todo-id="${t.id}">${t.text}</span>
+      ${t.daily ? '<span class="todo-daily-badge">🔁 每日</span>' : ''}
       <span class="todo-owner-edit editable" contenteditable="true" spellcheck="false" data-todo-owner="${t.id}" data-placeholder="負責人">${t.owner || ''}</span>
-      <span class="todo-due ${dueCls}"><span class="todo-due-edit editable" contenteditable="true" spellcheck="false" data-todo-due="${t.id}" data-placeholder="期限">${t.due || ''}</span>${dueTip}</span>
+      ${t.daily ? '' : `<span class="todo-due ${dueCls}"><span class="todo-due-edit editable" contenteditable="true" spellcheck="false" data-todo-due="${t.id}" data-placeholder="期限">${t.due || ''}</span>${dueTip}</span>`}
       ${t.done ? `<span class="todo-donedate">✅ <span class="todo-donedate-edit editable" contenteditable="true" spellcheck="false" data-todo-donedate="${t.id}" data-placeholder="完成日">${t.doneDate || ''}</span></span>` : ''}
       <span class="todo-time">${t.time || ''}</span>
       <button class="delete-item-btn" data-todo-del="${t.id}" title="刪除">🗑</button>
@@ -1438,12 +1495,16 @@ function renderTodoView(){
     <div class="todo-panel">
       <div class="todo-head">
         <div class="todo-title">📝 個人待辦事項</div>
-        <button class="history-btn" id="clearDoneTodosBtn">清除已完成</button>
+        <div class="todo-head-btns">
+          <button class="history-btn" id="resetDailyTodosBtn">🔁 重設每日</button>
+          <button class="history-btn" id="clearDoneTodosBtn">清除已完成</button>
+        </div>
       </div>
       <div class="todo-add-row">
         <input type="text" id="newTodoText" class="add-item-input-full" placeholder="待辦事項內容">
         <input type="text" id="newTodoOwner" class="add-item-input-full todo-owner-input" placeholder="負責人">
         <input type="text" id="newTodoDue" class="add-item-input-full todo-due-input" placeholder="期限（選填，如 9/30）">
+        <label class="todo-daily-label" title="每日例行事項不會排進時程表的日期軸"><input type="checkbox" id="newTodoDaily"> 🔁 每日</label>
         <button class="save-btn" id="addTodoBtn">＋ 新增</button>
       </div>
       ${TODOS.length ? groupsHtml : '<div class="todo-empty">目前還沒有任何待辦事項，從上方新增一筆吧 🎉</div>'}
@@ -1454,6 +1515,8 @@ function renderTodoView(){
   if(addBtn) addBtn.onclick = addTodo;
   const clearBtn = document.getElementById('clearDoneTodosBtn');
   if(clearBtn) clearBtn.onclick = clearDoneTodos;
+  const resetDailyBtn = document.getElementById('resetDailyTodosBtn');
+  if(resetDailyBtn) resetDailyBtn.onclick = resetDailyTodos;
   const input = document.getElementById('newTodoText');
   if(input){
     input.addEventListener('keydown', (e)=>{
