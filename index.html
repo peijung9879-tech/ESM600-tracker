@@ -111,7 +111,7 @@
   .todo-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
   .todo-title{ font-size:14px; font-weight:700; color:var(--ink); }
   .todo-add-row{ display:flex; gap:8px; margin-bottom:18px; }
-  .todo-add-row .add-item-input-full{ flex:1; }
+  .todo-add-row #newTodoText{ flex:0 1 50%; max-width:50%; }
   .todo-add-row .save-btn{ flex:0 0 auto; white-space:nowrap; }
   .todo-section-title{
     font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
@@ -123,7 +123,7 @@
   }
   .todo-row:last-child{ border-bottom:none; }
   .todo-check{ width:17px; height:17px; cursor:pointer; flex:0 0 auto; accent-color:var(--teal); }
-  .todo-text{ flex:1; font-size:13.5px; color:var(--ink); min-width:0; }
+  .todo-text{ flex:0 1 50%; max-width:50%; font-size:13.5px; color:var(--ink); min-width:0; }
   .todo-row.done .todo-text{ text-decoration:line-through; color:var(--ink-soft); opacity:.65; }
   .todo-time{ font-family:var(--mono); font-size:10px; color:var(--ink-soft); flex:0 0 auto; }
   .todo-due{
@@ -1436,7 +1436,6 @@ function renderTodoView(){
       </div>
       ${TODOS.length ? groupsHtml : '<div class="todo-empty">目前還沒有任何待辦事項，從上方新增一筆吧 🎉</div>'}
     </div>
-    ${renderTodoHorizontalTimelineHtml()}
     ${renderTodoTimelineHtml()}`;
 
   const addBtn = document.getElementById('addTodoBtn');
