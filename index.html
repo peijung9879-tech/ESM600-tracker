@@ -94,6 +94,55 @@
 
   table{ width:100%; border-collapse:collapse; }
   .table-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+  /* --- 待辦事項 --- */
+  .todo-panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 20px;
+  }
+  .todo-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+  .todo-title{ font-size:14px; font-weight:700; color:var(--ink); }
+  .todo-add-row{ display:flex; gap:8px; margin-bottom:18px; }
+  .todo-add-row .add-item-input-full{ flex:1; }
+  .todo-add-row .save-btn{ flex:0 0 auto; white-space:nowrap; }
+  .todo-section-title{
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--ink-soft); margin:16px 0 8px;
+  }
+  .todo-row{
+    display:flex; align-items:center; gap:10px; padding:9px 4px;
+    border-bottom:1px solid var(--line);
+  }
+  .todo-row:last-child{ border-bottom:none; }
+  .todo-check{ width:17px; height:17px; cursor:pointer; flex:0 0 auto; accent-color:var(--teal); }
+  .todo-text{ flex:1; font-size:13.5px; color:var(--ink); min-width:0; }
+  .todo-row.done .todo-text{ text-decoration:line-through; color:var(--ink-soft); opacity:.65; }
+  .todo-time{ font-family:var(--mono); font-size:10px; color:var(--ink-soft); flex:0 0 auto; }
+  .todo-due{
+    font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); flex:0 0 auto;
+    white-space:nowrap; display:inline-flex; align-items:center; gap:3px;
+  }
+  .todo-due-edit{ min-width:52px; display:inline-block; }
+  .todo-due.soon{ color:var(--amber); font-weight:700; }
+  .todo-due.overdue{ color:var(--red); font-weight:700; }
+  .todo-row.done .todo-due{ opacity:.5; }
+  .todo-due-input{ flex:0 0 180px; }
+  .todo-owner-input{ flex:0 0 130px; }
+  .todo-owner-edit{
+    font-size:12px; font-weight:600; color:var(--teal); flex:0 0 auto;
+    min-width:60px; display:inline-block; white-space:nowrap;
+  }
+  .todo-row.done .todo-owner-edit{ opacity:.5; }
+  .todo-group{
+    border:1px solid var(--line); border-radius:8px; padding:0 12px 6px; margin-bottom:14px;
+    background:#fbfaf7;
+  }
+  .todo-group-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 2px; border-bottom:1px solid var(--line); margin-bottom:2px;
+  }
+  .todo-group-name{ font-size:13px; font-weight:700; color:var(--teal); }
+  .todo-group-count{ font-family:var(--mono); font-size:10.5px; color:var(--ink-soft); }
+  .todo-empty{ font-size:12.5px; color:var(--ink-soft); font-style:italic; padding:10px 4px; }
   th{
     text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
     color:var(--ink-soft); padding:8px 16px; border-bottom:1px solid var(--line); font-weight:600;
@@ -678,6 +727,7 @@
       <div class="tab" data-view="bom">BOM 階層檢視</div>
       <div class="tab" data-view="raw">依原始項次檢視</div>
       <div class="tab" data-view="timeline">時間軸</div>
+      <div class="tab" data-view="todo">📝 待辦事項</div>
     </div>
     <div class="toolbar-right">
       <div class="filterbar">
@@ -713,6 +763,7 @@
   <div id="bomView" style="display:none"></div>
   <div id="rawView" style="display:none"></div>
   <div id="timelineView" style="display:none"></div>
+  <div id="todoView" style="display:none"></div>
 </div>
 
 <div class="history-overlay" id="historyOverlay">
@@ -855,11 +906,13 @@ let DATA = [];
 let HISTORY = [];
 let MILESTONES = [];
 let COUNTDOWN_TARGETS = { A: { date: '', label: '', owner: '' }, B: { date: '', label: '', owner: '' } };
+let TODOS = [];
 let milestoneManagerCollapsed = true;
 const STORAGE_KEY = 'tracker-current-v14';
 const HISTORY_KEY = 'tracker-history-v14';
 const MILESTONES_KEY = 'tracker-milestones-v1';
 const COUNTDOWN_KEY = 'tracker-countdown-v1';
+const TODOS_KEY = 'tracker-todos-v1';
 
 function showDebugError(msg){
   const el = document.getElementById('debugBanner');
@@ -899,6 +952,12 @@ async function initData(){
     COUNTDOWN_TARGETS = ct ? JSON.parse(ct.value) : { A: { date: '', label: '' }, B: { date: '', label: '' } };
   }catch(err){
     COUNTDOWN_TARGETS = { A: { date: '', label: '', owner: '' }, B: { date: '', label: '', owner: '' } };
+  }
+  try{
+    const td = await storage.get(TODOS_KEY);
+    TODOS = td ? JSON.parse(td.value) : [];
+  }catch(err){
+    TODOS = [];
   }
   const didSplit = splitAllCombinedFollowupTasks();
   if(didSplit){
@@ -957,6 +1016,236 @@ async function persistCountdown(){
   }catch(err){
     console.error('儲存倒數計時失敗', err);
     showDebugError('儲存倒數計時失敗：' + err.message);
+  }
+}
+
+async function persistTodos(){
+  try{
+    await storage.set(TODOS_KEY, JSON.stringify(TODOS));
+  }catch(err){
+    console.error('儲存待辦事項失敗', err);
+    showDebugError('儲存待辦事項失敗：' + err.message);
+  }
+}
+
+async function addTodo(){
+  const input = document.getElementById('newTodoText');
+  const dueInput = document.getElementById('newTodoDue');
+  const ownerInput = document.getElementById('newTodoOwner');
+  const text = input.value.trim();
+  if(!text){
+    input.focus();
+    showToast('⚠️ 請先輸入內容');
+    return;
+  }
+  TODOS.push({
+    id: `todo-${Date.now().toString().slice(-8)}`,
+    text,
+    owner: ownerInput ? ownerInput.value.trim() : '',
+    due: dueInput ? dueInput.value.trim() : '',
+    done: false,
+    time: new Date().toLocaleString('zh-TW', {hour12:false})
+  });
+  input.value = '';
+  if(dueInput) dueInput.value = '';
+  if(ownerInput) ownerInput.value = '';
+  showToast('新增中…');
+  await persistTodos();
+  renderTodoView();
+  showToast('已新增待辦事項，已同步到共用雲端');
+}
+
+async function updateTodoOwner(id, newOwner){
+  const t = TODOS.find(x=>x.id===id);
+  if(!t) return;
+  const v = (newOwner || '').trim();
+  if((t.owner || '') === v) return;
+  t.owner = v;
+  showToast('儲存中…');
+  await persistTodos();
+  showToast('已更新負責人，已同步到共用雲端');
+  renderTodoView();
+}
+
+async function updateTodoDue(id, newDue){
+  const t = TODOS.find(x=>x.id===id);
+  if(!t) return;
+  const v = (newDue || '').trim();
+  if((t.due || '') === v) return;
+  t.due = v;
+  showToast('儲存中…');
+  await persistTodos();
+  showToast('已更新期限，已同步到共用雲端');
+  renderTodoView();
+}
+
+async function toggleTodo(id){
+  const t = TODOS.find(x=>x.id===id);
+  if(!t) return;
+  t.done = !t.done;
+  await persistTodos();
+  renderTodoView();
+}
+
+async function updateTodoText(id, newText){
+  const t = TODOS.find(x=>x.id===id);
+  if(!t || t.text === newText) return;
+  if(!newText.trim()){
+    renderTodoView();
+    return;
+  }
+  t.text = newText.trim();
+  showToast('儲存中…');
+  await persistTodos();
+  showToast('已更新，已同步到共用雲端');
+}
+
+async function deleteTodo(id){
+  const idx = TODOS.findIndex(x=>x.id===id);
+  if(idx === -1) return;
+  if(!confirm(`確定要刪除「${TODOS[idx].text}」嗎？`)) return;
+  TODOS.splice(idx, 1);
+  showToast('刪除中…');
+  await persistTodos();
+  renderTodoView();
+  showToast('已刪除，已同步到共用雲端');
+}
+
+async function clearDoneTodos(){
+  const doneCount = TODOS.filter(t=>t.done).length;
+  if(!doneCount){ showToast('目前沒有已完成的事項'); return; }
+  if(!confirm(`確定要清除 ${doneCount} 筆已完成的事項嗎？`)) return;
+  TODOS = TODOS.filter(t=>!t.done);
+  showToast('清除中…');
+  await persistTodos();
+  renderTodoView();
+  showToast('已清除已完成事項，已同步到共用雲端');
+}
+
+function renderTodoView(){
+  const el = document.getElementById('todoView');
+  if(!el) return;
+  const rowHtml = t => {
+    const days = t.due ? daysUntil(t.due) : null;
+    let dueCls = '';
+    if(!t.done && days !== null){
+      if(days < 0) dueCls = 'overdue';
+      else if(days <= 7) dueCls = 'soon';
+    }
+    const dueTip = (!t.done && days !== null)
+      ? (days < 0 ? `（已過期 ${Math.abs(days)} 天）` : days === 0 ? '（今天）' : `（剩 ${days} 天）`)
+      : '';
+    return `
+    <div class="todo-row ${t.done ? 'done' : ''}">
+      <input type="checkbox" class="todo-check" data-todo-id="${t.id}" ${t.done ? 'checked' : ''}>
+      <span class="todo-text editable" contenteditable="true" spellcheck="false" data-todo-id="${t.id}">${t.text}</span>
+      <span class="todo-owner-edit editable" contenteditable="true" spellcheck="false" data-todo-owner="${t.id}" data-placeholder="負責人">${t.owner || ''}</span>
+      <span class="todo-due ${dueCls}"><span class="todo-due-edit editable" contenteditable="true" spellcheck="false" data-todo-due="${t.id}" data-placeholder="期限">${t.due || ''}</span>${dueTip}</span>
+      <span class="todo-time">${t.time || ''}</span>
+      <button class="delete-item-btn" data-todo-del="${t.id}" title="刪除">🗑</button>
+    </div>`;
+  };
+
+  // 依負責人分組
+  const groups = {};
+  TODOS.forEach(t=>{
+    const key = (t.owner || '').trim() || '（未指派）';
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(t);
+  });
+  const sortTodos = list => list.slice().sort((a,b)=>{
+    if(a.done !== b.done) return a.done ? 1 : -1;   // 未完成排前面
+    const da = a.due ? parseDeadline(a.due) : null;
+    const db = b.due ? parseDeadline(b.due) : null;
+    if(da && db) return da - db;
+    if(da) return -1;
+    if(db) return 1;
+    return 0;
+  });
+  // 分組順序：先照 GROUP1_OWNERS 名單，其餘照未完成數量多寡，未指派放最後
+  const groupNames = Object.keys(groups).sort((a,b)=>{
+    if(a === '（未指派）') return 1;
+    if(b === '（未指派）') return -1;
+    const ai = GROUP1_OWNERS.indexOf(a), bi = GROUP1_OWNERS.indexOf(b);
+    if(ai !== -1 && bi !== -1) return ai - bi;
+    if(ai !== -1) return -1;
+    if(bi !== -1) return 1;
+    return groups[b].filter(t=>!t.done).length - groups[a].filter(t=>!t.done).length;
+  });
+
+  const groupsHtml = groupNames.map(gname=>{
+    const list = sortTodos(groups[gname]);
+    const undoneN = list.filter(t=>!t.done).length;
+    return `
+      <div class="todo-group">
+        <div class="todo-group-head">
+          <span class="todo-group-name">👤 ${gname}</span>
+          <span class="todo-group-count">未完成 ${undoneN} / 共 ${list.length} 項</span>
+        </div>
+        ${list.map(rowHtml).join('')}
+      </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="todo-panel">
+      <div class="todo-head">
+        <div class="todo-title">📝 待辦事項（大家共用，任何人都能新增／勾選）</div>
+        <button class="history-btn" id="clearDoneTodosBtn">清除已完成</button>
+      </div>
+      <div class="todo-add-row">
+        <input type="text" id="newTodoText" class="add-item-input-full" placeholder="待辦事項內容">
+        <input type="text" id="newTodoOwner" class="add-item-input-full todo-owner-input" placeholder="負責人">
+        <input type="text" id="newTodoDue" class="add-item-input-full todo-due-input" placeholder="期限（選填，如 9/30）">
+        <button class="save-btn" id="addTodoBtn">＋ 新增</button>
+      </div>
+      ${TODOS.length ? groupsHtml : '<div class="todo-empty">目前還沒有任何待辦事項，從上方新增一筆吧 🎉</div>'}
+    </div>`;
+
+  const addBtn = document.getElementById('addTodoBtn');
+  if(addBtn) addBtn.onclick = addTodo;
+  const clearBtn = document.getElementById('clearDoneTodosBtn');
+  if(clearBtn) clearBtn.onclick = clearDoneTodos;
+  const input = document.getElementById('newTodoText');
+  if(input){
+    input.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); addTodo(); }
+    });
+  }
+  el.querySelectorAll('.todo-check').forEach(cb=>{
+    cb.addEventListener('change', ()=> toggleTodo(cb.dataset.todoId));
+  });
+  el.querySelectorAll('[data-todo-del]').forEach(btn=>{
+    btn.onclick = ()=> deleteTodo(btn.dataset.todoDel);
+  });
+  el.querySelectorAll('.todo-text').forEach(cell=>{
+    cell.addEventListener('blur', (e)=> updateTodoText(e.target.dataset.todoId, e.target.textContent));
+    cell.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+    });
+  });
+  el.querySelectorAll('.todo-due-edit').forEach(cell=>{
+    cell.addEventListener('blur', (e)=> updateTodoDue(e.target.dataset.todoDue, e.target.textContent));
+    cell.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+    });
+  });
+  el.querySelectorAll('.todo-owner-edit').forEach(cell=>{
+    cell.addEventListener('blur', (e)=> updateTodoOwner(e.target.dataset.todoOwner, e.target.textContent));
+    cell.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+    });
+  });
+  const dueInput = document.getElementById('newTodoDue');
+  if(dueInput){
+    dueInput.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); addTodo(); }
+    });
+  }
+  const ownerInput = document.getElementById('newTodoOwner');
+  if(ownerInput){
+    ownerInput.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); addTodo(); }
+    });
   }
 }
 
@@ -1165,6 +1454,7 @@ function setActiveOwner(name){
     document.getElementById('bomView').style.display = 'none';
     document.getElementById('rawView').style.display = 'none';
     document.getElementById('timelineView').style.display = 'none';
+    document.getElementById('todoView').style.display = 'none';
   }
   renderAll();
 }
@@ -2237,6 +2527,7 @@ function renderAll(){
   renderBomView();
   renderRawView();
   renderTimelinePage();
+  renderTodoView();
   attachEditHandlers();
 }
 
@@ -2249,6 +2540,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     document.getElementById('bomView').style.display = currentView==='bom' ? 'block':'none';
     document.getElementById('rawView').style.display = currentView==='raw' ? 'block':'none';
     document.getElementById('timelineView').style.display = currentView==='timeline' ? 'block':'none';
+    document.getElementById('todoView').style.display = currentView==='todo' ? 'block':'none';
   };
 });
 
