@@ -130,47 +130,57 @@
     color:var(--ink-soft); margin:16px 0 8px;
   }
   .todo-row{
-    display:flex; align-items:center; gap:10px; padding:9px 4px;
+    display:flex; align-items:flex-start; gap:10px; padding:9px 4px;
     border-bottom:1px solid var(--line);
   }
   .todo-row:last-child{ border-bottom:none; }
-  .todo-check{ width:17px; height:17px; cursor:pointer; flex:0 0 auto; accent-color:var(--teal); }
-  .todo-text{ flex:0 1 50%; max-width:50%; font-size:15px; color:var(--ink); min-width:0; }
-  .todo-row.done .todo-text{ text-decoration:line-through; color:var(--ink-soft); opacity:.65; }
-  .todo-time{ font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); flex:0 0 auto; }
-  .todo-due{
-    font-family:var(--mono); font-size:13px; color:var(--ink-soft); flex:0 0 auto;
-    white-space:nowrap; display:inline-flex; align-items:center; gap:3px;
+  .todo-check{ width:17px; height:17px; cursor:pointer; flex:0 0 auto; accent-color:var(--teal); margin-top:2px; }
+  /* 固定欄寬，文字過長自動換行並撐高該列 */
+  .todo-text{
+    flex:0 0 25%; width:25%; font-size:15px; color:var(--ink); min-width:0;
+    overflow-wrap:anywhere; white-space:normal; line-height:1.4;
   }
-  .todo-due-edit{ min-width:52px; display:inline-block; }
+  .todo-row.done .todo-text{ text-decoration:line-through; color:var(--ink-soft); opacity:.65; }
+  .todo-badge-slot{ flex:0 0 76px; width:76px; display:flex; align-items:flex-start; }
+  .todo-owner-edit{
+    flex:0 0 90px; width:90px; font-size:13.5px; font-weight:600; color:var(--teal);
+    overflow-wrap:anywhere; white-space:normal; line-height:1.4;
+  }
+  .todo-target-edit{
+    flex:0 0 100px; width:100px; font-size:12.5px; font-weight:600; color:var(--blue);
+    overflow-wrap:anywhere; white-space:normal; line-height:1.4;
+  }
+  .todo-due{
+    flex:0 0 150px; width:150px; font-family:var(--mono); font-size:13px; color:var(--ink-soft);
+    display:flex; align-items:baseline; gap:4px; flex-wrap:wrap; line-height:1.4;
+  }
+  .todo-due-edit{ display:inline-block; }
   .todo-due.soon{ color:var(--amber); font-weight:700; }
   .todo-due.overdue{ color:var(--red); font-weight:700; }
   .todo-row.done .todo-due{ opacity:.5; }
-  .todo-due-input{ flex:0 0 180px; }
-  .todo-owner-input{ flex:0 0 130px; }
-  .todo-owner-edit{
-    font-size:13.5px; font-weight:600; color:var(--teal); flex:0 0 auto;
-    min-width:60px; display:inline-block; white-space:nowrap;
-  }
-  .todo-row.done .todo-owner-edit{ opacity:.5; }
-  .todo-target-edit{
-    font-size:12.5px; font-weight:600; color:var(--blue); flex:0 0 auto;
-    min-width:64px; display:inline-block; white-space:nowrap;
-  }
   .todo-impact-edit{
-    font-size:12.5px; color:var(--ink-soft); flex:0 1 auto;
-    min-width:64px; max-width:160px; display:inline-block;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    flex:0 0 200px; width:200px; font-size:12.5px; color:var(--red);
+    background:var(--red-soft); border-radius:5px; padding:3px 7px;
+    overflow-wrap:anywhere; white-space:normal; line-height:1.4;
   }
+  .todo-impact-edit:empty:before{ color:#c99; }
+  .todo-donedate{
+    flex:0 0 74px; width:74px; font-family:var(--mono); font-size:11.5px; font-weight:700;
+    color:var(--teal); line-height:1.4;
+  }
+  .todo-donedate-edit{ display:inline-block; }
+  .todo-time{
+    flex:0 0 132px; width:132px; font-family:var(--mono); font-size:11.5px;
+    color:var(--ink-soft); line-height:1.4;
+  }
+  .todo-row .delete-item-btn{ flex:0 0 auto; margin-left:auto; }
+  .todo-row.done .todo-owner-edit,
   .todo-row.done .todo-target-edit,
   .todo-row.done .todo-impact-edit{ opacity:.5; }
+  .todo-due-input{ flex:0 0 180px; }
+  .todo-owner-input{ flex:0 0 130px; }
   .todo-target-input{ flex:0 0 120px; }
   .todo-impact-input{ flex:0 0 140px; }
-  .todo-donedate{
-    font-family:var(--mono); font-size:11.5px; font-weight:700; color:var(--teal);
-    flex:0 0 auto; white-space:nowrap;
-  }
-  .todo-donedate-edit{ min-width:44px; display:inline-block; }
   .todo-group{
     border:1px solid var(--line); border-radius:8px; padding:0 12px 6px; margin-bottom:14px;
     background:#fbfaf7;
@@ -1502,12 +1512,12 @@ function renderTodoView(){
     <div class="todo-row ${t.done ? 'done' : ''} ${rep ? 'repeating ' + rep : ''}">
       <input type="checkbox" class="todo-check" data-todo-id="${t.id}" ${t.done ? 'checked' : ''}>
       <span class="todo-text editable" contenteditable="true" spellcheck="false" data-todo-id="${t.id}">${t.text}</span>
-      ${rep ? `<span class="todo-daily-badge ${rep}">${repeatLabel(rep)}</span>` : ''}
+      <span class="todo-badge-slot">${rep ? `<span class="todo-daily-badge ${rep}">${repeatLabel(rep)}</span>` : ''}</span>
       <span class="todo-owner-edit editable" contenteditable="true" spellcheck="false" data-todo-owner="${t.id}" data-placeholder="負責人">${t.owner || ''}</span>
       <span class="todo-target-edit editable" contenteditable="true" spellcheck="false" data-todo-target="${t.id}" data-placeholder="需求對象">${t.target || ''}</span>
-      ${rep ? '' : `<span class="todo-due ${dueCls}"><span class="todo-due-edit editable" contenteditable="true" spellcheck="false" data-todo-due="${t.id}" data-placeholder="期限">${t.due || ''}</span>${dueTip}</span>`}
+      <span class="todo-due ${dueCls}">${rep ? '' : `<span class="todo-due-edit editable" contenteditable="true" spellcheck="false" data-todo-due="${t.id}" data-placeholder="期限">${t.due || ''}</span>${dueTip}`}</span>
       <span class="todo-impact-edit editable" contenteditable="true" spellcheck="false" data-todo-impact="${t.id}" data-placeholder="影響">${t.impact || ''}</span>
-      ${t.done ? `<span class="todo-donedate">✅ <span class="todo-donedate-edit editable" contenteditable="true" spellcheck="false" data-todo-donedate="${t.id}" data-placeholder="完成日">${t.doneDate || ''}</span></span>` : ''}
+      <span class="todo-donedate">${t.done ? `✅ <span class="todo-donedate-edit editable" contenteditable="true" spellcheck="false" data-todo-donedate="${t.id}" data-placeholder="完成日">${t.doneDate || ''}</span>` : ''}</span>
       <span class="todo-time">${t.time || ''}</span>
       <button class="delete-item-btn" data-todo-del="${t.id}" title="刪除">🗑</button>
     </div>`;
