@@ -151,10 +151,11 @@
     overflow-wrap:anywhere; white-space:normal; line-height:1.4;
   }
   .todo-due{
-    flex:0 0 150px; width:150px; font-family:var(--mono); font-size:13px; color:var(--ink-soft);
-    display:flex; align-items:baseline; gap:4px; flex-wrap:wrap; line-height:1.4;
+    flex:0 0 200px; width:200px; font-family:var(--mono); font-size:13px; color:var(--ink-soft);
+    display:flex; align-items:baseline; gap:6px; flex-wrap:nowrap; line-height:1.4;
   }
-  .todo-due-edit{ display:inline-block; }
+  .todo-due-edit{ flex:0 0 82px; width:82px; display:inline-block; overflow-wrap:anywhere; }
+  .todo-due-tip{ flex:1 1 auto; white-space:nowrap; font-size:12px; }
   .todo-due.soon{ color:var(--amber); font-weight:700; }
   .todo-due.overdue{ color:var(--red); font-weight:700; }
   .todo-row.done .todo-due{ opacity:.5; }
@@ -1506,7 +1507,7 @@ function renderTodoView(){
       else if(days <= 7) dueCls = 'soon';
     }
     const dueTip = (!t.done && days !== null)
-      ? (days < 0 ? `（已過期 ${Math.abs(days)} 天）` : days === 0 ? '（今天）' : `（剩 ${days} 天）`)
+      ? `<span class="todo-due-tip">${days < 0 ? `（已過期 ${Math.abs(days)} 天）` : days === 0 ? '（今天）' : `（剩 ${days} 天）`}</span>`
       : '';
     return `
     <div class="todo-row ${t.done ? 'done' : ''} ${rep ? 'repeating ' + rep : ''}">
