@@ -626,6 +626,16 @@
   .bom-name{ flex:0 0 auto; min-width:160px; max-width:260px; }
   .bom-row.depth-0 .bom-name{ font-weight:700; color:var(--teal); }
   .bom-row.depth-1 .bom-name{ font-weight:600; }
+  .bom-dues{ display:flex; flex-wrap:wrap; gap:6px; flex:0 0 auto; min-width:150px; }
+  .bom-due{
+    display:inline-flex; align-items:baseline; gap:4px; font-family:var(--mono); font-size:11px;
+    color:var(--ink-soft); background:#fbfaf7; border:1px solid var(--line);
+    border-radius:5px; padding:1px 6px;
+  }
+  .bom-due-owner{ font-family:var(--sans); font-size:10px; opacity:.75; }
+  .bom-due .deadline{ min-width:44px; }
+  .bom-due.soon{ color:var(--amber); border-color:var(--amber); background:var(--amber-soft); }
+  .bom-due.overdue{ color:var(--red); border-color:var(--red); background:var(--red-soft); }
   .bom-badges{ display:flex; flex-wrap:wrap; gap:6px; flex:1; }
   .bom-badge{
     font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; white-space:nowrap;
@@ -1974,9 +1984,25 @@ function renderBomView(){
     const isExterior = !!tasks[0].appearance;
     const indent = 12 + depth * 22;
     const badges = tasks.map(t=>`<span class="bom-badge ${t.status}">${t.followup}${t.status==='inprogress' ? ' 🔵':''}</span>`).join('');
+    // 期限：同一項次若多位負責人，各自可獨立編輯
+    const dues = tasks.map(t=>{
+      const d = parseDeadline(t.deadline);
+      let cls = '';
+      if(t.status !== 'ok' && d){
+        const now = new Date(); now.setHours(0,0,0,0);
+        const days = Math.round((d - now) / 86400000);
+        if(days < 0) cls = 'overdue';
+        else if(days <= 7) cls = 'soon';
+      }
+      return `<span class="bom-due ${cls}" title="${t.followup} 的期限">
+        <span class="bom-due-owner">${t.followup}</span>
+        <span class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="期限" data-id="${t.id}" data-field="deadline">${t.deadline || ''}</span>
+      </span>`;
+    }).join('');
     return `<div class="bom-row depth-${Math.min(depth,2)}" style="padding-left:${indent}px">
       <span class="bom-id">${pid}</span>
       <span class="bom-name">${name}${isExterior ? '<span class="exterior-tag">🎨 外觀</span>' : ''}</span>
+      <span class="bom-dues">${dues}</span>
       <span class="bom-badges">${badges}</span>
     </div>`;
   }).join('') + `</div>`;
