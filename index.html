@@ -418,17 +418,36 @@
   .timeline-col-count{
     text-align:center; font-size:10.5px; color:var(--ink-soft); margin-bottom:10px; font-family:var(--mono);
   }
-  .timeline-item-card{
+  /* 時間軸：依人名分組的卡片 */
+  .timeline-person-card{
     background:var(--panel); border:1px solid var(--line); border-radius:8px;
-    padding:9px 10px; margin-bottom:8px;
+    padding:8px 9px; margin-bottom:8px;
   }
-  .timeline-item-card.id-tag{
-    background:var(--blue-soft); border-color:var(--blue);
+  .timeline-person-name{
+    display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:800;
+    color:var(--teal); padding-bottom:5px; margin-bottom:5px; border-bottom:1px solid var(--line);
   }
-  .timeline-item-card.id-tag .timeline-item-name{ color:var(--blue); }
-  .timeline-item-name{ font-size:12.5px; font-weight:700; color:var(--ink); line-height:1.3; }
-  .timeline-item-part{ font-family:var(--mono); font-size:10px; color:var(--ink-soft); }
-  .timeline-item-meta{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; align-items:center; }
+  .timeline-person-count{
+    margin-left:auto; font-family:var(--mono); font-size:10px; font-weight:600;
+    color:var(--ink-soft); background:var(--bg); border-radius:20px; padding:1px 7px;
+  }
+  .timeline-person-items{ display:flex; flex-direction:column; gap:4px; }
+  .timeline-person-item{
+    display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--ink);
+    line-height:1.35;
+  }
+  .timeline-person-item.id-tag .timeline-person-item-name{ color:var(--blue); font-weight:700; }
+  .timeline-person-item-name{ flex:1; overflow-wrap:anywhere; }
+  .timeline-person-item-part{ font-family:var(--mono); font-size:9.5px; color:var(--ink-soft); flex:0 0 auto; }
+  .status-dot{
+    width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--ink-soft);
+  }
+  .status-dot.ok{ background:var(--teal); }
+  .status-dot.pending{ background:var(--amber); }
+  .status-dot.inprogress{ background:var(--blue); }
+  .status-dot.urgent{ background:var(--red); }
+  .status-dot.blocked{ background:var(--lock); }
+  .status-dot.review{ background:#b13cc4; }
   .timeline-more-btn{
     font-size:11px; color:var(--teal); cursor:pointer; text-align:center; padding:5px 0;
     background:var(--teal-soft); border-radius:6px; font-weight:600; margin-bottom:8px;
@@ -2356,18 +2375,28 @@ function parseDeadline(str){
 }
 
 function groupTimelineColumn(list){
+  // 依負責人分組，每個人底下放自己負責的品名清單
   const map = {};
   const order = [];
   list.forEach(task=>{
-    const pid = task.partId;
-    if(!map[pid]){
-      map[pid] = { partId: pid, name: task.name, entries: [] };
-      order.push(pid);
+    const person = task.followup || '未指派';
+    if(!map[person]){
+      map[person] = { person, items: [] };
+      order.push(person);
     }
-    map[pid].entries.push({ followup: task.followup || '未指派', status: task.status });
+    map[person].items.push({ partId: task.partId, name: task.name, status: task.status });
   });
-  order.sort(comparePartId);
-  return order.map(pid => map[pid]);
+  // 每個人底下的品名依項次排序
+  order.forEach(p => map[p].items.sort((a,b)=>comparePartId(a.partId, b.partId)));
+  // 人員排序：先照第一組名單，其餘照項目數多寡
+  order.sort((a,b)=>{
+    const ai = GROUP1_OWNERS.indexOf(a), bi = GROUP1_OWNERS.indexOf(b);
+    if(ai !== -1 && bi !== -1) return ai - bi;
+    if(ai !== -1) return -1;
+    if(bi !== -1) return 1;
+    return map[b].items.length - map[a].items.length;
+  });
+  return order.map(p => map[p]);
 }
 
 function renderTimelinePage(){
@@ -2408,11 +2437,15 @@ function renderTimelinePage(){
   let colIdx = 0;
 
   const itemCard = (g) => `
-    <div class="timeline-item-card ${g.name.startsWith('ID-') ? 'id-tag' : ''}">
-      <div class="timeline-item-name">${g.name}</div>
-      <div class="timeline-item-meta">
-        <span class="timeline-item-part">${g.partId}</span>
-        ${g.entries.map(e=>`<span class="bom-badge ${e.status}">👤 ${e.followup}</span>`).join('')}
+    <div class="timeline-person-card">
+      <div class="timeline-person-name">👤 ${g.person}<span class="timeline-person-count">${g.items.length}</span></div>
+      <div class="timeline-person-items">
+        ${g.items.map(it=>`
+          <div class="timeline-person-item ${it.name.startsWith('ID-') ? 'id-tag' : ''}">
+            <span class="status-dot ${it.status}"></span>
+            <span class="timeline-person-item-name">${it.name}</span>
+            <span class="timeline-person-item-part">${it.partId}</span>
+          </div>`).join('')}
       </div>
     </div>`;
 
@@ -2423,14 +2456,15 @@ function renderTimelinePage(){
     const rest = groups.slice(THUMB_LIMIT);
     let inner = shown.map(itemCard).join('');
     if(rest.length){
-      inner += `<div class="timeline-more-btn" data-target="${cid}">▾ 還有 ${rest.length} 項</div>`;
+      inner += `<div class="timeline-more-btn" data-target="${cid}">▾ 還有 ${rest.length} 人</div>`;
       inner += `<div class="timeline-more-list" id="${cid}" style="display:none;">${rest.map(itemCard).join('')}</div>`;
     }
+    const totalItems = groups.reduce((n,g)=>n + g.items.length, 0);
     return `
       <div class="timeline-col ${cls}">
         <div class="timeline-col-dot"></div>
         <div class="timeline-col-date">${dateLabel}</div>
-        <div class="timeline-col-count">${groups.length} 項</div>
+        <div class="timeline-col-count">${groups.length} 人 · ${totalItems} 項</div>
         <div class="timeline-col-items">${inner}</div>
       </div>`;
   };
