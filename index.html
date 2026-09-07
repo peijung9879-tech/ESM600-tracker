@@ -388,7 +388,10 @@
   .history-empty{ padding:30px 0; text-align:center; color:var(--ink-soft); font-size:13px; }
 
   /* --- timeline page (horizontal, time-axis) --- */
-  .timeline-legend{ display:flex; gap:16px; margin-bottom:14px; font-size:11px; color:var(--ink-soft); }
+  .timeline-legend{
+    display:flex; gap:16px; margin-bottom:14px; font-size:11px; color:var(--ink-soft);
+    align-items:center; flex-wrap:wrap;
+  }
   .timeline-legend span{ display:inline-flex; align-items:center; gap:5px; }
   .timeline-page{ overflow-x:auto; padding-bottom:12px; }
   .timeline-axis-track{
@@ -878,6 +881,48 @@
   body.mobile-mode .save-btn,
   body.mobile-mode .history-btn{
     width:100%; padding:11px; font-size:14px; text-align:center;
+  }
+  /* --- 列印／匯出 PDF：只輸出時間軸 --- */
+  @media print{
+    body.print-timeline{ padding:0; background:#fff; }
+    body.print-timeline #app{ zoom:1; }
+    /* 隱藏非時間軸的區塊 */
+    body.print-timeline .dashboard-grid,
+    body.print-timeline .load-panel,
+    body.print-timeline .personal-panel,
+    body.print-timeline .edit-hint,
+    body.print-timeline .subtitle,
+    body.print-timeline .controls,
+    body.print-timeline #ownerView,
+    body.print-timeline #bomView,
+    body.print-timeline #rawView,
+    body.print-timeline #todoView,
+    body.print-timeline #debugBanner,
+    body.print-timeline .history-overlay,
+    body.print-timeline .toast,
+    body.print-timeline #exportTimelineBtn,
+    body.print-timeline .milestone-manager .milestone-manager-body,
+    body.print-timeline .milestone-delete-btn,
+    body.print-timeline .timeline-more-btn{
+      display:none !important;
+    }
+    body.print-timeline #timelineView{ display:block !important; }
+    /* 時間軸改成可換行排列，避免超出紙張寬度被裁掉 */
+    body.print-timeline .timeline-page{ overflow:visible !important; }
+    body.print-timeline .timeline-axis-track,
+    body.print-timeline .timeline-milestone-row{
+      flex-wrap:wrap !important; min-width:0 !important;
+    }
+    body.print-timeline .timeline-axis-track::before{ display:none; }
+    body.print-timeline .timeline-col,
+    body.print-timeline .timeline-milestone-slot{
+      width:23% !important; flex:0 0 23% !important;
+      break-inside:avoid; page-break-inside:avoid; margin-bottom:14px;
+      border-right:1px solid #ddd;
+    }
+    body.print-timeline .timeline-person-card{ break-inside:avoid; page-break-inside:avoid; }
+    body.print-timeline .timeline-col-items{ max-height:none !important; }
+    @page{ margin:12mm; size:A4 landscape; }
   }
 </style>
 </head>
@@ -2299,6 +2344,24 @@ function showToast(msg){
   toastTimer = setTimeout(()=>t.classList.remove('show'), 1800);
 }
 
+
+function exportTimelinePDF(){
+  // 先把所有「還有 N 人」收合區塊展開，確保列印時內容完整
+  document.querySelectorAll('#timelineView .timeline-more-list').forEach(el=>{
+    el.style.display = 'block';
+  });
+  document.querySelectorAll('#timelineView .timeline-more-btn').forEach(btn=>{
+    btn.dataset.printHidden = '1';
+  });
+  document.body.classList.add('print-timeline');
+  showToast('準備列印…請在列印視窗選擇「另存為 PDF」');
+  setTimeout(()=>{
+    window.print();
+    document.body.classList.remove('print-timeline');
+    renderTimelinePage();   // 還原收合狀態
+  }, 300);
+}
+
 function exportCSV(){
   const headers = ["項次","品名","外觀相關","狀態","期限","負責人","備註","現況"];
   const rows = DATA.map(d=>[
@@ -2627,6 +2690,7 @@ function renderTimelinePage(){
       <span><i class="dot" style="background:var(--teal)"></i>之後</span>
       <span><i class="dot" style="background:var(--ink-soft)"></i>無日期</span>
       <span>🎯 重要節點時間軸</span>
+      <button class="save-btn" id="exportTimelineBtn" style="margin-left:auto;">🖨 匯出時間軸 PDF</button>
     </div>
     <div class="timeline-page">
       ${milestoneRowHtml.includes('has-milestone') ? `<div class="timeline-milestone-row">${milestoneRowHtml}</div>` : ''}
@@ -2641,6 +2705,8 @@ function renderTimelinePage(){
       btn.textContent = isHidden ? '▴ 收合' : btn.textContent.replace('▴ 收合', `▾ 還有 ${target.children.length} 項`);
     };
   });
+  const expTlBtn = document.getElementById('exportTimelineBtn');
+  if(expTlBtn) expTlBtn.onclick = exportTimelinePDF;
   attachMilestoneHandlers();
 }
 
