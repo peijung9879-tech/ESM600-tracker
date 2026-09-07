@@ -446,6 +446,21 @@
   .timeline-person-item.id-tag .timeline-person-item-name{ color:var(--blue); font-weight:700; }
   .timeline-person-item-name{ flex:1; overflow-wrap:anywhere; }
   .timeline-person-item-part{ font-family:var(--mono); font-size:9.5px; color:var(--ink-soft); flex:0 0 auto; }
+  /* 延遲標記 */
+  .delay-tag{
+    display:inline-block; margin-left:5px; font-size:9.5px; font-weight:700;
+    color:#8e2f9e; background:#f3e4f7; border-radius:20px; padding:0 6px; white-space:nowrap;
+  }
+  .timeline-person-item.delayed .timeline-person-item-name{ color:#8e2f9e; }
+  .delayed-cell{ color:#8e2f9e; }
+  .delayed-cell.has-delay{ background:#f9f0fb; font-weight:700; }
+  .bom-due-arrow{ font-size:10px; opacity:.6; }
+  .bom-delay-edit{ min-width:38px; color:#8e2f9e; font-weight:700; }
+  .bom-delay-tag{
+    font-size:9px; font-weight:700; color:#8e2f9e; background:#f3e4f7;
+    border-radius:20px; padding:0 5px; white-space:nowrap;
+  }
+  .bom-due.is-delayed{ border-style:dashed; }
   .status-dot{
     width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--ink-soft);
   }
@@ -2007,6 +2022,7 @@ function renderOwnerView(){
           <th>品名</th>
           <th style="width:100px">狀態</th>
           <th style="width:90px">期限</th>
+          <th style="width:100px">延後至</th>
           <th style="width:110px">負責人</th>
           <th>備註</th>
           <th>現況</th>
@@ -2024,6 +2040,7 @@ function renderOwnerView(){
                 ${coOwnersHtml(i)}
               </td>
               <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
+              <td class="deadline delayed-cell editable ${i.delayed ? 'has-delay' : ''}" contenteditable="true" spellcheck="false" data-placeholder="－" data-id="${i.id}" data-field="delayed">${i.delayed || ""}</td>
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
               <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
               <td class="followup editable progress-cell" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
@@ -2098,8 +2115,9 @@ function renderBomView(){
     const badges = tasks.map(t=>`<span class="bom-badge ${t.status}">${t.followup}${t.status==='inprogress' ? ' 🔵':''}</span>`).join('');
     // 期限：同一項次若多位負責人，各自可獨立編輯
     const dues = tasks.map(t=>{
-      const d = parseDeadline(t.deadline);
-      const hasText = !!(t.deadline && t.deadline.trim());
+      const eff = effectiveDeadline(t);
+      const d = eff.date;
+      const hasText = !!((t.deadline && t.deadline.trim()) || (t.delayed && t.delayed.trim()));
       let cls = '';
       if(hasText){
         if(t.status === 'ok'){
@@ -2119,9 +2137,15 @@ function renderBomView(){
                  const n=Math.round((d-now)/86400000);
                  return n<0 ? `已過期 ${Math.abs(n)} 天` : n===0 ? '今天' : `剩 ${n} 天`; })()
         : '';
-      return `<span class="bom-due ${cls}" title="${t.followup} 的期限${daysTip ? '｜' + daysTip : ''}">
+      const delayTag = eff.isDelayed
+        ? `<span class="bom-delay-tag" title="原訂 ${t.deadline || '未定'}">⏱${eff.slipDays !== null ? ' +' + eff.slipDays + '天' : ''}</span>`
+        : '';
+      return `<span class="bom-due ${cls} ${eff.isDelayed ? 'is-delayed' : ''}" title="${t.followup} 的期限${daysTip ? '｜' + daysTip : ''}${eff.isDelayed ? '｜原訂 ' + (t.deadline || '未定') : ''}">
         <span class="bom-due-owner">${t.followup}</span>
         <span class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="期限" data-id="${t.id}" data-field="deadline">${t.deadline || ''}</span>
+        <span class="bom-due-arrow">${eff.isDelayed ? '→' : ''}</span>
+        <span class="deadline editable bom-delay-edit" contenteditable="true" spellcheck="false" data-placeholder="延後" data-id="${t.id}" data-field="delayed">${t.delayed || ''}</span>
+        ${delayTag}
       </span>`;
     }).join('');
     return `<div class="bom-row depth-${Math.min(depth,2)}" style="padding-left:${indent}px">
@@ -2144,6 +2168,7 @@ function renderRawView(){
         <th>品名</th>
         <th style="width:100px">狀態</th>
         <th style="width:90px">期限</th>
+          <th style="width:100px">延後至</th>
         <th style="width:110px">負責人</th>
         <th>備註</th>
         <th>現況</th>
@@ -2161,6 +2186,7 @@ function renderRawView(){
               ${coOwnersHtml(i)}
             </td>
             <td class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="deadline">${i.deadline || ""}</td>
+              <td class="deadline delayed-cell editable ${i.delayed ? 'has-delay' : ''}" contenteditable="true" spellcheck="false" data-placeholder="－" data-id="${i.id}" data-field="delayed">${i.delayed || ""}</td>
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="followup">${i.followup || ""}</td>
             <td class="followup editable" contenteditable="true" spellcheck="false" data-placeholder="無" data-id="${i.id}" data-field="note">${i.note || ""}</td>
             <td class="followup editable progress-cell" contenteditable="true" spellcheck="false" data-placeholder="填寫最新現況" data-id="${i.id}" data-field="progress">${i.progress || ""}</td>
@@ -2172,7 +2198,7 @@ function renderRawView(){
 }
 
 function fieldLabel(f){
-  return {followup:'負責人', note:'備註', deadline:'期限', status:'狀態', name:'品名', progress:'現況', partId:'項次'}[f] || f;
+  return {followup:'負責人', note:'備註', deadline:'期限', delayed:'延後至', status:'狀態', name:'品名', progress:'現況', partId:'項次'}[f] || f;
 }
 
 async function handleFieldChange(id, field, oldRaw, newRaw){
@@ -2382,9 +2408,9 @@ function exportTimelineImage(){
 }
 
 function exportCSV(){
-  const headers = ["項次","品名","外觀相關","狀態","期限","負責人","備註","現況"];
+  const headers = ["項次","品名","外觀相關","狀態","期限","延後至","負責人","備註","現況"];
   const rows = DATA.map(d=>[
-    d.partId, d.name, d.appearance ? "是" : "", statusLabel(d.status), d.deadline||"", d.followup||"", d.note||"", d.progress||""
+    d.partId, d.name, d.appearance ? "是" : "", statusLabel(d.status), d.deadline||"", d.delayed||"", d.followup||"", d.note||"", d.progress||""
   ]);
   const csv = [headers, ...rows].map(r =>
     r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')
@@ -2503,6 +2529,17 @@ document.getElementById('historyOverlay').onclick = (e)=>{
   if(e.target.id === 'historyOverlay') e.target.classList.remove('show');
 };
 
+// 有填「延後至」就以延後日為準，並回傳延遲天數
+function effectiveDeadline(t){
+  const orig = parseDeadline(t.deadline);
+  const delayed = parseDeadline(t.delayed);
+  if(delayed){
+    const slip = orig ? Math.round((delayed - orig) / 86400000) : null;
+    return { date: delayed, isDelayed: true, slipDays: slip, origDate: orig };
+  }
+  return { date: orig, isDelayed: false, slipDays: null, origDate: orig };
+}
+
 function parseDeadline(str){
   if(!str) return null;
   let m = str.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
@@ -2534,7 +2571,11 @@ function groupTimelineColumn(list){
       map[person] = { person, items: [] };
       order.push(person);
     }
-    map[person].items.push({ partId: task.partId, name: task.name, status: task.status });
+    const eff = effectiveDeadline(task);
+    map[person].items.push({
+      partId: task.partId, name: task.name, status: task.status,
+      isDelayed: eff.isDelayed, slipDays: eff.slipDays, origDeadline: task.deadline
+    });
   });
   // 每個人底下的品名依項次排序
   order.forEach(p => map[p].items.sort((a,b)=>comparePartId(a.partId, b.partId)));
@@ -2556,9 +2597,9 @@ function renderTimelinePage(){
   const withDates = [];
   const noDates = [];
   DATA.filter(d => d.status !== 'ok').forEach(d=>{
-    const date = parseDeadline(d.deadline);
-    if(date) withDates.push({ task: d, date });
-    else if(d.deadline) noDates.push(d);
+    const eff = effectiveDeadline(d);
+    if(eff.date) withDates.push({ task: d, date: eff.date });
+    else if(d.deadline || d.delayed) noDates.push(d);
   });
 
   // 依實際日期分組，同一天算同一個時間軸節點
@@ -2591,9 +2632,9 @@ function renderTimelinePage(){
       <div class="timeline-person-name">👤 ${g.person}<span class="timeline-person-count">${g.items.length}</span></div>
       <div class="timeline-person-items">
         ${g.items.map(it=>`
-          <div class="timeline-person-item ${it.name.startsWith('ID-') ? 'id-tag' : ''}">
+          <div class="timeline-person-item ${it.name.startsWith('ID-') ? 'id-tag' : ''} ${it.isDelayed ? 'delayed' : ''}">
             <span class="status-dot ${it.status}"></span>
-            <span class="timeline-person-item-name">${it.name}</span>
+            <span class="timeline-person-item-name">${it.name}${it.isDelayed ? `<span class="delay-tag" title="原訂 ${it.origDeadline || '未定'}">⏱${it.slipDays !== null ? ' +' + it.slipDays + '天' : ' 延後'}</span>` : ''}</span>
             <span class="timeline-person-item-part">${it.partId}</span>
           </div>`).join('')}
       </div>
