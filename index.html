@@ -411,6 +411,10 @@
   .timeline-col.later .timeline-col-dot{ background:var(--teal); box-shadow:0 0 0 1px var(--teal); }
   .timeline-col-date{
     text-align:center; font-family:var(--mono); font-weight:700; font-size:13px; margin-top:24px;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+  }
+  .timeline-col-daytip{
+    font-family:var(--sans); font-size:10.5px; font-weight:600; opacity:.85;
   }
   .timeline-col.overdue .timeline-col-date{ color:var(--red); }
   .timeline-col.soon .timeline-col-date{ color:var(--amber); }
@@ -2493,8 +2497,12 @@ function renderTimelinePage(){
     const isOverdue = bucket.date < now;
     const isSoon = !isOverdue && (bucket.date - now) <= 7*86400000;
     const cls = isOverdue ? 'overdue' : (isSoon ? 'soon' : 'later');
+    const days = Math.round((bucket.date - now) / 86400000);
+    const dayTip = days < 0 ? `已過期 ${Math.abs(days)} 天`
+                 : days === 0 ? '就是今天'
+                 : `剩 ${days} 天`;
     const groups = groupTimelineColumn(bucket.tasks);
-    columnsHtml += columnHtml(cls, fmtShort(bucket.date), groups);
+    columnsHtml += columnHtml(cls, `${fmtShort(bucket.date)}<span class="timeline-col-daytip">${dayTip}</span>`, groups);
     milestoneRowHtml += milestoneSlotHtml(bucket.milestones);
   });
   if(noDates.length){
