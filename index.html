@@ -657,8 +657,11 @@
   }
   .bom-due-owner{ font-family:var(--sans); font-size:10px; opacity:.75; }
   .bom-due .deadline{ min-width:44px; }
-  .bom-due.soon{ color:var(--amber); border-color:var(--amber); background:var(--amber-soft); }
-  .bom-due.overdue{ color:var(--red); border-color:var(--red); background:var(--red-soft); }
+  .bom-due.soon{ color:var(--amber); border-color:var(--amber); background:var(--amber-soft); font-weight:700; }
+  .bom-due.overdue{ color:var(--red); border-color:var(--red); background:var(--red-soft); font-weight:700; }
+  .bom-due.later{ color:var(--blue); border-color:var(--blue); background:var(--blue-soft); font-weight:600; }
+  .bom-due.done{ color:var(--teal); border-color:var(--teal); background:var(--teal-soft); font-weight:600; }
+  .bom-due.textonly{ color:var(--lock); border-color:var(--lock); background:var(--lock-soft); }
   .bom-badges{ display:flex; flex-wrap:wrap; gap:6px; flex:1; }
   .bom-badge{
     font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; white-space:nowrap;
@@ -1986,6 +1989,45 @@ function renderOwnerView(){
   }).join('');
 }
 
+async function updateBomPartId(oldPid, newRaw){
+  const newPid = (newRaw || '').trim();
+  if(!newPid){
+    showToast('⚠️ 項次不能空白');
+    renderAll();
+    return;
+  }
+  if(newPid === oldPid) return;
+  const tasks = DATA.filter(d => d.partId === oldPid);
+  if(!tasks.length) return;
+
+  // 檢查是否會跟現有資料衝突（同項次同負責人）
+  const conflict = tasks.find(t => {
+    const newId = `${newPid}::${t.followup}`;
+    return DATA.some(d => d.id === newId && d.partId !== oldPid);
+  });
+  if(conflict){
+    showToast(`⚠️ 「${newPid}」已有負責人「${conflict.followup}」的項目，請換一個項次`);
+    renderAll();
+    return;
+  }
+
+  tasks.forEach(t=>{
+    t.partId = newPid;
+    t.id = `${newPid}::${t.followup}`;
+  });
+  HISTORY.unshift({
+    id: tasks[0].id, partId: newPid, name: tasks[0].name,
+    assignee: tasks.map(t=>t.followup).join('、'), field: 'partId',
+    oldVal: oldPid, newVal: newPid,
+    time: new Date().toLocaleString('zh-TW', {hour12:false})
+  });
+  showToast('儲存中…');
+  await Promise.all([persistData(), persistHistory()]);
+  renderHistoryList();
+  renderAll();
+  showToast(`已將項次「${oldPid}」改為「${newPid}」（共 ${tasks.length} 筆），已同步到共用雲端`);
+}
+
 function renderBomView(){
   const data = filteredData();
   const order = [];
@@ -2010,20 +2052,33 @@ function renderBomView(){
     // 期限：同一項次若多位負責人，各自可獨立編輯
     const dues = tasks.map(t=>{
       const d = parseDeadline(t.deadline);
+      const hasText = !!(t.deadline && t.deadline.trim());
       let cls = '';
-      if(t.status !== 'ok' && d){
-        const now = new Date(); now.setHours(0,0,0,0);
-        const days = Math.round((d - now) / 86400000);
-        if(days < 0) cls = 'overdue';
-        else if(days <= 7) cls = 'soon';
+      if(hasText){
+        if(t.status === 'ok'){
+          cls = 'done';                       // 已完成：綠色
+        } else if(d){
+          const now = new Date(); now.setHours(0,0,0,0);
+          const days = Math.round((d - now) / 86400000);
+          if(days < 0) cls = 'overdue';       // 已過期：紅色
+          else if(days <= 7) cls = 'soon';    // 7天內：橘色
+          else cls = 'later';                 // 之後：藍色
+        } else {
+          cls = 'textonly';                   // 有寫但不是標準日期：灰紫色
+        }
       }
-      return `<span class="bom-due ${cls}" title="${t.followup} 的期限">
+      const daysTip = (t.status !== 'ok' && d)
+        ? (()=>{ const now=new Date(); now.setHours(0,0,0,0);
+                 const n=Math.round((d-now)/86400000);
+                 return n<0 ? `已過期 ${Math.abs(n)} 天` : n===0 ? '今天' : `剩 ${n} 天`; })()
+        : '';
+      return `<span class="bom-due ${cls}" title="${t.followup} 的期限${daysTip ? '｜' + daysTip : ''}">
         <span class="bom-due-owner">${t.followup}</span>
         <span class="deadline editable" contenteditable="true" spellcheck="false" data-placeholder="期限" data-id="${t.id}" data-field="deadline">${t.deadline || ''}</span>
       </span>`;
     }).join('');
     return `<div class="bom-row depth-${Math.min(depth,2)}" style="padding-left:${indent}px">
-      <span class="bom-id">${pid}</span>
+      <span class="bom-id editable" contenteditable="true" spellcheck="false" data-bom-pid="${pid}" data-placeholder="項次" title="修改後會同步套用到這個項次的所有負責人">${pid}</span>
       <span class="bom-name">${name}${isExterior ? '<span class="exterior-tag">🎨 外觀</span>' : ''}</span>
       <span class="bom-dues">${dues}</span>
       <span class="bom-badges">${badges}</span>
@@ -2164,6 +2219,7 @@ async function handleFieldChange(id, field, oldRaw, newRaw){
 function attachEditHandlers(){
   const MULTILINE_FIELDS = ['note', 'progress'];
   document.querySelectorAll('.editable').forEach(cell=>{
+    if(cell.dataset.bomPid !== undefined) return;   // BOM 項次由專屬處理器負責
     cell.addEventListener('blur', (e)=>{
       const id = e.target.dataset.id;
       const field = e.target.dataset.field;
@@ -2178,6 +2234,14 @@ function attachEditHandlers(){
         e.preventDefault(); e.target.blur();
       }
       // 備註／現況欄位：Enter 直接換行，不送出；改用 Shift+Enter 或點旁邊來確認送出
+    });
+  });
+  document.querySelectorAll('[data-bom-pid]').forEach(cell=>{
+    cell.addEventListener('blur', (e)=>{
+      updateBomPartId(e.target.dataset.bomPid, e.target.textContent);
+    });
+    cell.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
     });
   });
   document.querySelectorAll('.status-select').forEach(sel=>{
